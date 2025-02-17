@@ -1677,7 +1677,8 @@ def send_team_member_notification(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+#change1
+#check user
 @api_view(('POST',))
 def create_leagues(request):
     data = {'status':'','data':[],'message':''}
@@ -1703,8 +1704,9 @@ def create_leagues(request):
         team_person = json.loads(team_person)
         others_fees = json.loads(others_fees)
         league_type = request.data.get('league_type')
-        invited_code = request.data.get('invited_code')
-
+        invited_code = request.data.get('invited_code', None)
+        latitude = request.data.get('latitude', None)
+        longitude = request.data.get('longitude', None)
         start_rank = request.data.get('start_rank') 
         end_rank = request.data.get('end_rank')       
         
@@ -1717,7 +1719,7 @@ def create_leagues(request):
         registration_end_date = datetime.strptime(registration_end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
         leagues_id = []
-        if check_user.exists() and check_user.first().is_admin or check_user.first().is_organizer:
+        if check_user.exists():
             mesage_box = []
             counter = 0
             for kk in team_type:
@@ -1734,20 +1736,11 @@ def create_leagues(request):
                         continue
                     else:
                         pass
-                
-                full_address = location
-                api_key = settings.MAP_API_KEY
-                state, country, pincode, latitude, longitude = get_address_details(full_address,api_key)
-
-                if latitude is None:
-                    latitude = 38.908683
-                if longitude is None:
-                    longitude = -76.937352
                 obj = GenerateKey()
                 secret_key = obj.gen_leagues_key()
                 save_leagues = Leagues(secret_key=secret_key,name=name,leagues_start_date=leagues_start_date,leagues_end_date=leagues_end_date,location=location,
                                     registration_start_date=registration_start_date,registration_end_date=registration_end_date,created_by_id=check_user.first().id,
-                                    street=state,city=city,state=state,postal_code=pincode,country=country,max_number_team=max_number_team, play_type=play_type,
+                                    city=city,max_number_team=max_number_team, play_type=play_type,
                                     registration_fee=registration_fee,description=description,image=image,league_type=league_type)
                 if league_type == "Invites only":
                     save_leagues.invited_code = invited_code 
@@ -1832,7 +1825,8 @@ def create_leagues(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
+#change1
+#check user
 @api_view(('POST',))
 def create_play_type_details(request):
     data = {'status':'','data':[],'message':''}
@@ -1840,6 +1834,9 @@ def create_play_type_details(request):
         user_uuid = request.data.get('user_uuid')
         user_secret_key = request.data.get('user_secret_key')
         total_data = request.data.get('data')
+        is_policy = request.data.get('is_policy', False)
+        l_uuids = request.data.get('l_uuids', [])
+        policy_data = request.data.get('policy_data', [])
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
         if check_user.exists() and check_user.first().is_admin or check_user.first().is_organizer:
             my_result = []
@@ -1850,8 +1847,9 @@ def create_play_type_details(request):
                 get_data = fo["data"]
                 Leagues_check = Leagues.objects.filter(uuid=l_uuid, secret_key=l_secret_key)
                 if Leagues_check.exists:
-                    pt = LeaguesPlayType.objects.filter(league_for=Leagues_check.first())
-                    pt_update = pt.update(data=get_data)
+                    get_league = Leagues_check.first()
+                    pt = LeaguesPlayType.objects.filter(league_for=get_league)
+                    pt.update(data=get_data)
                     #league_data
                     league_data = Leagues_check.values()
                     # print(league_data)
@@ -1869,12 +1867,27 @@ def create_play_type_details(request):
                     my_result.append(league_data[0])
                 else:
                     my_result.append({"error":"League not found"})
+            
+            for i_uuid in l_uuids:
+                # try:
+                get_league = Leagues.objects.filter(uuid=i_uuid).first()
+                get_league.policy = is_policy
+                get_league.save()
+                for p_data in policy_data:
+                    add_league_policy = LeaguesCancellationPolicy(league=get_league, within_day=p_data["within_day"], refund_percentage=p_data["percentage"])
+                    add_league_policy.save()
+                # except:
+                #     pass
+
+
+
             data["status"],data["data"], data["message"] = status.HTTP_200_OK,my_result,"Created playtype successfully"
         else:
             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found."
     except Exception as e :
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
+
 
 
 @api_view(('POST',))
@@ -6884,7 +6897,8 @@ def view_playtype_details(request):
         data['teams'] = teams        
         data['max_team'] =  league.max_number_team
         data['total_register_team'] =  league.registered_team.all().count()
-        data['tournament_detais'] = LeaguesPlayType.objects.filter(league_for = check_leagues.first()).values()
+        data['tournament_detais'] = list(LeaguesPlayType.objects.filter(league_for = check_leagues.first()).values())
+        data['cancellation_policy'] = list(LeaguesCancellationPolicy.objects.filter(league = check_leagues.first()).values("within_day","refund_percentage"))
         data["create_group_status"] = get_user.is_organizer and check_leagues.first().created_by == get_user
         data['data'] = leagues
         if league.winner_team:

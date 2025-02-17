@@ -66,7 +66,7 @@ def screen_type_list(request):
     return Response(data)
 
 
-# Not using anymore
+# new implement
 @api_view(('POST',))
 def add_advertisement(request):
     data = {'status':'', 'message':''}
@@ -80,6 +80,16 @@ def add_advertisement(request):
         url = request.data.get('url')
         start_date = request.data.get('start_date')
         end_date = request.data.get('end_date')
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        advertisement_name = request.data.get('advertisement_name')
+        description = request.data.get('description')
+        image = request.FILES.get('image')
+        script_text = request.data.get('script_text')
+        url = request.data.get('url')
+        anoumt = request.data.get('anoumt')
+        unit = request.data.get('unit')
+        duration_unit = request.data.get('duration_unit')
 
         start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
@@ -87,23 +97,10 @@ def add_advertisement(request):
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
         if check_user.exists() :
             get_user = check_user.first()
-            if get_user.is_admin or get_user.is_sponsor:
-                obj = GenerateKey()
-                advertisement_key = obj.gen_advertisement_key()
-                Advertisement.objects.create(
-                    secret_key=advertisement_key,
-                    name=advertisement_name,
-                    image=image,
-                    url=url,
-                    created_by_id=get_user.id,
-                    script_text=script_text,
-                    description = description,
-                    start_date=start_date,
-                    end_date=end_date
-                    )
-                data["status"], data["message"] = status.HTTP_200_OK,"Advertisement created successfully"
-            else:
-                data["status"], data["message"] = status.HTTP_404_NOT_FOUND,"User is not Admin or Sponsor"
+            obj = GenerateKey()
+            advertisement_key = obj.gen_advertisement_key()
+            Advertisement.objects.create(secret_key=advertisement_key,name=advertisement_name,image=image,url=url,anoumt = anoumt,unit = unit,duration_unit = duration_unit,created_by_id=get_user.id,script_text=script_text,description = description,start_date=start_date,end_date=end_date)
+            data["status"], data["message"] = status.HTTP_200_OK,"Advertisement created successfully"
         else:
             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
     except Exception as e :
@@ -128,6 +125,7 @@ def create_advertisement(request):
         url = request.data.get('url')
         start_date = request.data.get('start_date')
         end_date = request.data.get('end_date')
+        
         
         start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')

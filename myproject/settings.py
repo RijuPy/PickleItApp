@@ -71,8 +71,10 @@ INSTALLED_APPS = [
     'apps.team',
     'apps.pickleitcollection',
     'apps.chat',
+    'apps.socalfeed',
     'apps.admin_side',
     'apps.store',
+    'apps.courts',
 ]
 
 MIDDLEWARE = [

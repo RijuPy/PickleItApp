@@ -127,6 +127,7 @@ LEAGUE_TYPE = (
 )
 
 
+
 class Leagues(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(max_length=250, unique=True)
@@ -154,8 +155,8 @@ class Leagues(models.Model):
     state = models.CharField(max_length=255, null=True, blank=True)
     postal_code = models.CharField(max_length=20, null=True, blank=True)
     country = models.CharField(max_length=255, null=True, blank=True)
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, default=38.908683)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, default=-76.937352)
+    latitude = models.CharField(max_length=15, null=True, blank=True)
+    longitude = models.CharField(max_length=15, null=True, blank=True)
     complete_address = models.TextField(null=True, blank=True,help_text="street, city, state, country, PIN-postal_code")
     # Added by
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
@@ -172,41 +173,20 @@ class Leagues(models.Model):
     any_rank = models.BooleanField(default=True)
     start_rank = models.FloatField(null=True, blank=True)
     end_rank = models.FloatField(null=True, blank=True)
-
+    policy = models.BooleanField(default=True)
 
     def __str__(self) :
         return f"{self.name} - {self.team_type}"
 
-    # def save(self, *args, **kwargs):
-    #     # Check if any of the address components are not None
-    #     if self.street and self.city and self.state and self.postal_code and self.country:
-    #         # Concatenate the address components to form the complete_address
-    #         self.complete_address = f"{self.street}, {self.city}, {self.state}, {self.country}, PIN-{self.postal_code}"
-            
-    #     # Use Google Maps Geocoding API to get latitude and longitude
-    #     api_key = settings.MAP_API_KEY
-    #     try:
-    #         # address = f"{self.city}, {self.state}, {self.country}"
-    #         # response = requests.get(
-    #         #     f"https://nominatim.openstreetmap.org/search?format=json&q={address}"
-    #         # )
-    #         # result = response.json()
-    #         # print("result",result[0]["lat"],"....",result[0]["lon"])
-    #         # if response.status_code == 200:
-    #         #     self.latitude = result[0]["lat"]
-    #         #     self.longitude = result[0]["lon"]
-    #         address = self.complete_address
-    #         response = requests.get(
-    #             f'https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={api_key}'
-    #         )
-    #         result = response.json()
-    #         if response.status_code == 200:
-    #             self.latitude = result["results"][0]["geometry"]["location"]["lat"]
-    #             self.longitude = result["results"][0]["geometry"]["location"]["lng"]
-    #     except :
-    #         pass
-            
-    #     super().save(*args, **kwargs)
+class LeaguesCancellationPolicy(models.Model):
+    league = models.ForeignKey(Leagues, on_delete=models.CASCADE)
+    within_day = models.IntegerField()
+    refund_percentage = models.FloatField()
+    
+    def __str__(self) :
+        return f"{self.within_day} = {self.refund_percentage} %"  
+
+
 
 def default_json():
     return [
