@@ -1396,10 +1396,27 @@ def ambassador_post_list(request):
 
 @login_required(login_url="/admin/login/")
 def advertisement_list(request):
-    context = {"advertisemnets":"","message":""}
-    ads = Advertisement.objects.all().order_by('created_at').values("id","name","image","script_text","url","approved_by_admin","description","start_date","end_date","created_at","created_by__username")
-    context["advertisements"] = ads
+    context = {"advertisements": "", "message": ""}
+    
+    filter_type = request.GET.get('filter_type')
+    
+    ads = Advertisement.objects.all().order_by('created_at')
+
+    if filter_type == "pending_requests":
+        ads = ads.filter(admin_approve_status="Pending", approved_by_admin=False)
+    elif filter_type == "rejected_requests":
+        ads = ads.filter(admin_approve_status="Rejected", approved_by_admin=False)
+    elif filter_type == "approved_requests":
+        ads = ads.filter(admin_approve_status="Approved", approved_by_admin=True)
+    else:
+        ads = ads
+
+    context["advertisements"] = ads.values(
+        "id", "name", "image", "script_text", "url", "approved_by_admin",
+        "description", "start_date", "end_date", "created_at", "created_by__username"
+    )
     return render(request, "dashboard/side/advertisement_list.html", context)
+
 
 @login_required(login_url="/admin/login/")
 def advertisement_view(request, ad_id):
@@ -1413,6 +1430,7 @@ def ad_approve(request, ad_id):
     context = {"ad":"", "message":""}
     ad = get_object_or_404(Advertisement, id=ad_id)
     ad.approved_by_admin = True
+    ad.admin_approve_status = "Approved"
     ad.save()
     return redirect(reverse("dashboard:advertisement_list"))
 
@@ -1421,6 +1439,7 @@ def ad_reject(request, ad_id):
     context = {"ad":"", "message":""}
     ad = get_object_or_404(Advertisement, id=ad_id)
     ad.approved_by_admin = False
+    ad.admin_approve_status = "Rejected"
     ad.save()
     return redirect(reverse("dashboard:advertisement_list"))
 
@@ -1806,3 +1825,35 @@ def version_update(request):
         AppVersionUpdate.objects.create(version=version,release_date=release_date, description=description, created_by=request.user.username)
         return redirect("dashboard:version_update_list")
     return render(request, "dashboard/side/update/version_update.html", context)
+
+
+
+####readnotification####
+from apps.chat.models import NotificationBox
+import json
+from django.http import JsonResponse
+
+@login_required(login_url="/admin/login/")
+def mark_notifications_as_read(request):
+    """
+    Marks notifications as read based on provided IDs.
+    """
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)  # ✅ Correct way to get JSON data
+            notification_ids = data.get("unread_notification_ids", [])
+
+            if not notification_ids:
+                return JsonResponse({"error": "No notification IDs provided"}, status=400)
+
+            # Update notifications where the ID is in the provided list and belongs to the user
+            updated_count = NotificationBox.objects.filter(
+                id__in=notification_ids, notify_for=request.user, is_read=False
+            ).update(is_read=True)
+
+            return JsonResponse({"success": True, "updated_count": updated_count}, status=200)
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format"}, status=400)
+    
+    return JsonResponse({"error": "Invalid request method"}, status=405)

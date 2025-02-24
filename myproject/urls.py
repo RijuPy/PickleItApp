@@ -43,8 +43,8 @@ urlpatterns = [
     path('chat/', include('apps.chat.urls')),
     path('admin/', include('apps.admin_side.urls')),
     path('accessories/', include('apps.store.urls')),
-    path('socialfeed/', include('apps.socialfeed.urls')),
-    path('courts/', include('apps.courts.urls')),
+    # path('socialfeed/', include('apps.socialfeed.urls')),
+    # path('courts/', include('apps.courts.urls')),
     
 ]
 

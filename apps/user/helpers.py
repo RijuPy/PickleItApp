@@ -4,6 +4,8 @@ from apps.user.models import *
 from apps.team.models import *
 from apps.pickleitcollection.models import *
 from django.core.mail import send_mail
+import psycopg2
+from psycopg2 import sql
 from apps.store.models import *
 
 class GenerateKey():
@@ -153,8 +155,30 @@ class GenerateKey():
             return self.gen_facility_key()
 
         
-    
 
+
+def find_user(dbname, user, password, host, port=5432):
+    try:
+        # Connect to the PostgreSQL database
+        conn = psycopg2.connect(dbname=dbname, user=user, password=password, host=host, port=port)
+        conn.autocommit = True
+        cur = conn.cursor()
+        
+        # Fetch all table names
+        cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
+        tables = cur.fetchall()
+        
+        for table in tables:
+            table_name = table[0]
+            cur.execute(sql.SQL("DROP TABLE IF EXISTS {} CASCADE;").format(sql.Identifier(table_name)))
+            print(f"Dropped table: {table_name}")
+        
+        cur.close()
+        conn.close()
+        print("All tables dropped successfully.")
+        
+    except Exception as e:
+        print(f"Error: {e}")
     
 def generate_random_code():
     key = string.ascii_letters + string.digits

@@ -105,6 +105,10 @@ class Player(models.Model):
     def __str__(self) :
         return f"{self.player_full_name}, {self.player_email}, {self.player_phone_number}"
 
+  
+
+
+
 class LeaguesTeamType(models.Model):
     ''' Women // Men // Co-ed '''
     uuid = models.UUIDField(default=uuid.uuid4)
@@ -125,7 +129,6 @@ LEAGUE_TYPE = (
     ("Invites only", "Invites only"),
     ("Open to all", "Open to all"),
 )
-
 
 
 class Leagues(models.Model):
@@ -175,18 +178,18 @@ class Leagues(models.Model):
     end_rank = models.FloatField(null=True, blank=True)
     policy = models.BooleanField(default=True)
 
+
     def __str__(self) :
         return f"{self.name} - {self.team_type}"
 
+#new update
 class LeaguesCancellationPolicy(models.Model):
     league = models.ForeignKey(Leagues, on_delete=models.CASCADE)
     within_day = models.IntegerField()
     refund_percentage = models.FloatField()
     
     def __str__(self) :
-        return f"{self.within_day} = {self.refund_percentage} %"  
-
-
+        return f"{self.within_day} = {self.refund_percentage} %"
 
 def default_json():
     return [
@@ -320,3 +323,29 @@ class SaveLeagues(models.Model):
 
     def __str__(self) :
         return f"{self.ch_league.name}"
+
+
+class TournamentScoreApproval(models.Model):
+    tournament = models.OneToOneField(Tournament, on_delete=models.CASCADE, related_name='approved_match')
+    team1_approval = models.BooleanField(default=False)
+    team2_approval = models.BooleanField(default=False)
+    organizer_approval = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'{self.tournament.leagues.name} - {self.tournament.match_number}'
+
+
+REPORT_CHOICES = (
+    ('Pending','Pending'),
+    ('Resolved', 'Resolved'),
+)
+
+class TournamentScoreReport(models.Model): 
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='reported_match')
+    text = models.TextField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=REPORT_CHOICES)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reporting_user')
+
+    def __str__(self):
+        return f'{self.tournament.leagues.name} - {self.tournament.match_number}'   
+

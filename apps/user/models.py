@@ -4,6 +4,10 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from phonenumber_field.modelfields import PhoneNumberField
 from django.dispatch import receiver
 from django.db.models.signals import post_save
+from datetime import timedelta, timezone
+from django.utils.timezone import now
+from decimal import Decimal
+from django.core.exceptions import ValidationError
 
 # Create your models here.
 
@@ -264,4 +268,281 @@ def notification_for_version_update(sender, instance, created, **kwargs):
         from apps.chat.views import notify_all_users
         notify_all_users(title, message)
 
+
+PLAN_CHOICES = (
+        ('Free', 'Free'),
+        ('Paid with upgrade', 'Paid with upgrade'),
+        ('Pro', 'Pro'),
+        ('Enterprise', 'Enterprise'),
+)
+   
+class SubscriptionPlan(models.Model):
+    name = models.CharField(max_length=20, choices=PLAN_CHOICES, unique=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  
+    description = models.TextField(blank=True, null=True)
+    duration_days = models.IntegerField(default=30) 
+
+    def __str__(self):
+        return f"{self.name} - ${self.price}"
+
+
+class Features(models.Model):
+    name = models.CharField(max_length=255, null=True, blank=True)
+    description = models.TextField(blank=True, null=True)
+    plan = models.ManyToManyField(SubscriptionPlan, blank=True, related_name="features")
+
+    def __str__(self):
+        return f"{self.name} - {[plan.name for plan in self.plan.all()]}"
+
+
+class Subscription(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.SET_NULL, null=True)
+    start_date = models.DateTimeField(auto_now_add=True)
+    end_date = models.DateTimeField()
+
+    def save(self, *args, **kwargs):
+        if not self.start_date:  
+            self.start_date = now()
+
+        if not self.end_date:
+            self.end_date = self.start_date + timedelta(days=self.plan.duration_days)
+
+        super().save(*args, **kwargs)
+
+    def is_active(self):
+        return self.end_date >= now()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.plan.name} (Expires: {self.end_date.date()})"
+
+
+# class Payment(models.Model):  
+#     "Payment Table For Subscription" 
+#     user = models.ForeignKey(User, on_delete=models.CASCADE)
+#     subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name="payments", null=True, blank=True)
+#     amount = models.DecimalField(max_digits=10, decimal_places=2)
+#     checkout_session_id = models.TextField(blank=True, null=True)
+#     payment_date = models.DateTimeField(auto_now_add=True)
+#     payment_mode = models.CharField(max_length=255, null=True, blank=True)
+#     status = models.CharField(max_length=20, choices=[('Pending', 'Pending'), ('Completed', 'Completed'), ('Failed', 'Failed')])
+
+#     def __str__(self):
+#         return f"{self.user.username} - {self.amount} ({self.status})"  
     
+
+class Wallet(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="wallet")
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    stripe_account_id = models.CharField(max_length=255, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s Wallet - Balance: ${self.balance}"
+    
+    def save(self, *args, **kwargs):       
+        if self.user.is_superuser:
+            if Wallet.objects.filter(user__is_superuser=True).exclude(id=self.id).exists():
+                raise ValidationError("Only one superuser can have a wallet.")
+
+        super().save(*args, **kwargs)
+
+    def deposit(self, amount):
+        """Add funds to the wallet."""
+        self.balance += amount
+        self.save()
+
+    def withdraw(self, amount):
+        """Deduct funds from the wallet if sufficient balance is available."""
+        if self.balance >= amount:
+            self.balance -= amount
+            self.save()
+            return True
+        return False
+
+
+@receiver(post_save, sender=User)
+def create_wallet(sender, instance, created, **kwargs):
+    """
+    Creates a wallet when a new user is created.
+    If the user is updated and does not have a wallet, a wallet is created.
+    """
+    if created or not hasattr(instance, 'wallet'):
+        Wallet.objects.get_or_create(user=instance)
+        
+
+class WalletTransaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('credit', 'Credit'),
+        ('debit', 'Debit'),
+    ]
+
+    TRANSACTION_FOR = [
+        ('Subscription', 'Subscription'),
+        ('AddMoney', 'AddMoney'),
+        ('TeamRegistration', 'TeamRegistration'),
+        ('Advertisement', 'Advertisement'),
+        ('Store', 'Store'),
+        ('Withdraw', 'Withdraw'),
+    ]
+    transaction_id = models.CharField(max_length=15, unique=True, null=True, blank=True)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="wallet_sender_user")
+    reciver = models.ForeignKey(User, on_delete=models.CASCADE, related_name="wallet_reciver_user", blank=True, null=True)
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    transaction_for = models.CharField(max_length=20, choices=TRANSACTION_FOR)
+    reciver_cost = models.CharField(max_length=15, blank=True, null=True)
+    admin_cost = models.CharField(max_length=15, blank=True, null=True)
+    getway_charge = models.CharField(max_length=15, null=True, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_id = models.CharField(max_length=255, null=True, blank=True)
+    json_response = models.JSONField(null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.sender.username} - {self.transaction_type} - ${self.amount}"
+
+    def save(self, *args, **kwargs):
+        """Generate a unique transaction ID and update wallet balance when saving a transaction."""
+
+        if not self.created_at:  # Set created_at only on creation
+            self.created_at = now()
+
+        if not self.transaction_id:
+            self.transaction_id = self.generate_transaction_id()
+
+        # if not self.pk:  
+        #     if self.transaction_type == "credit":
+        #         self.reciver.wallet.deposit(self.amount)  # Assuming Wallet model exists
+        #     elif self.transaction_type == "debit":
+        #         success = self.sender.wallet.withdraw(self.amount)
+        #         if not success:
+        #             raise ValueError("Insufficient wallet balance")
+        
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_transaction_id():
+        """Generate a unique transaction ID with a 15-character limit."""
+        return str(uuid.uuid4().hex[:15]).upper()
+
+
+class WithdrawalRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='withdrawal_request')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Request {self.id} - {self.user.username} ({self.status})"
+    
+    def save(self, *args, **kwargs):
+       
+        if self.pk:
+            old_instance = WithdrawalRequest.objects.get(pk=self.pk)
+            if old_instance.status != "approved" and self.status == "approved":
+               
+                wallet = self.user.wallet
+                if wallet.balance >= self.amount:
+                    wallet.withdraw(self.amount)                      
+                   
+                    WalletTransaction.objects.create(
+                        transaction_id=WalletTransaction.generate_transaction_id(),
+                        sender=self.user,
+                        reciver = self.user,
+                        transaction_type="debit",
+                        transaction_for="Withdraw",
+                        amount=self.amount,
+                        description=f"Withdrawal of ${self.amount} approved",
+                        created_at=now()
+                    )
+                else:
+                    raise ValidationError("Insufficient wallet balance for withdrawal.")
+
+        super().save(*args, **kwargs)
+
+
+class AllPaymentsTable(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    checkout_session_id = models.TextField(blank=True, null=True)
+    payment_for = models.CharField(max_length=255, null=True, blank=True)
+    payment_date = models.DateTimeField(auto_now_add=True)
+    payment_mode = models.CharField(max_length=255, null=True, blank=True)
+    json_response = models.JSONField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=[('Pending', 'Pending'), ('Completed', 'Completed'), ('Failed', 'Failed')])
+
+    def __str__(self):
+        return f"{self.user.username} : ${self.amount} - for {self.payment_for}, {self.payment_date}"
+    
+
+class AdminWallet(models.Model):
+    balance = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('0.00'))
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        """Ensure only one instance of AdminWallet exists. Raise error if more than one instance is attempted to be created."""
+        
+        if not self.pk and AdminWallet.objects.exists():
+            raise ValidationError("Only one AdminWallet instance is allowed.")
+
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls):
+        """Retrieve the single AdminWallet instance, creating it if necessary."""
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Admin Wallet - Balance: ${self.balance}"
+
+    class Meta:
+        verbose_name = "Admin Wallet"
+        verbose_name_plural = "Admin Wallet"
+
+
+class AdminWalletTransaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('credit', 'Credit'),
+        ('debit', 'Debit'),
+    ]
+
+    wallet = models.ForeignKey('AdminWallet', on_delete=models.CASCADE, related_name='admin_transactions')
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    description = models.TextField(null=True, blank=True)
+    payment_id = models.CharField(max_length=255, null=True, blank=True)
+    json_response = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        """Automatically update the AdminWallet balance when a transaction is saved."""
+        if not self.pk:  
+            admin_wallet = AdminWallet.get_instance() 
+
+            if self.transaction_type == 'credit':
+                admin_wallet.balance += self.amount
+            elif self.transaction_type == 'debit':
+                admin_wallet.balance -= self.amount
+
+            admin_wallet.save()  
+
+        super().save(*args, **kwargs) 
+
+    def __str__(self):
+        return f"{self.transaction_type.capitalize()} - ${self.amount} - {self.description}"
+
+    class Meta:
+        verbose_name = "Admin Wallet Transaction"
+        verbose_name_plural = "Admin Wallet Transactions"
+        ordering = ['-created_at'] 
+  
+ 

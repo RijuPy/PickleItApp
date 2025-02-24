@@ -6,6 +6,7 @@ import uuid
 from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.db.models import Count, F
+from datetime import datetime
 
 # Create your models here.
 
@@ -21,32 +22,63 @@ SCREEN_TYPE = (
     ("sponsor_add", "Sponsor Add"),
 )
 
+DURATION_TYPE = (
+    ('Days', 'Days'),
+    ('Weeks', 'Weeks'),
+    ('Months', 'Months'),
+    ('Year', 'Year')
+)
+
+class AdvertisementDurationRate(models.Model):
+    duration = models.PositiveIntegerField()
+    duration_type = models.CharField(max_length=10, choices=DURATION_TYPE, default="Days")
+    rate = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.duration} {self.duration_type} : ${self.rate}"
+
+
 ADD_TYPE = (
     ("Image", "Image"),
     ("Script", "Script"),
 )
-
 class Advertisement(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(max_length=250, unique=True)
     name = models.CharField(max_length=250, null=True, blank=True)
+    duration = models.ForeignKey(AdvertisementDurationRate, on_delete=models.SET_NULL, null=True, blank=True)
     image = models.ImageField(upload_to='advertisement_image/', null=True, blank=True)
     script_text = models.TextField(null=True, blank=True)
     url = models.TextField(null=True, blank=True)
+    company_name = models.CharField(max_length=255, null=True, blank=True)
+    company_website = models.TextField(null=True, blank=True)
     approved_by_admin = models.BooleanField(default=False)
-    status = models.CharField(max_length=20, default="pending")
-    check_responce = models.TextField()
-    anoumt = models.CharField(max_length=100)
-    unit = models.CharField(max_length=100)
-    duration_unit = models.CharField(max_length=10, default="year")
+    admin_approve_status = models.CharField(max_length=25, choices=[('Pending', 'Pending'), ('Approved', 'Approved'), ('Rejected', 'Rejected')], default="Pending")
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User,on_delete=models.SET_NULL, null=True, blank=True, related_name='advertisementCreatedBy')
     description = models.TextField(null=True, blank=True)
     start_date = models.DateTimeField(null=True, blank=True)
     end_date = models.DateTimeField(null=True, blank=True)
 
+    def save(self, *args, **kwargs):
+        if self.start_date and self.duration:
+            if isinstance(self.start_date, str):
+                self.start_date = datetime.strptime(self.start_date, "%Y-%m-%d")
+
+            if self.duration.duration_type == "Days":
+                self.end_date = self.start_date + timedelta(days=self.duration.duration)
+            elif self.duration.duration_type == "Weeks":
+                self.end_date = self.start_date + timedelta(weeks=self.duration.duration)
+            elif self.duration.duration_type == "Months":
+                self.end_date = self.start_date + timedelta(days=self.duration.duration * 30) 
+            elif self.duration.duration_type == "Year":
+                self.end_date = self.start_date + timedelta(days=self.duration.duration * 365) 
+
+        super().save(*args, **kwargs)
+
     def __str__(self) :
-        return f"{self.name} [{self.start_date} to {self.end_date}]"
+        return f"{self.name} [{self.start_date} to {self.end_date}]"   
+    
     
 CHARGE_TYPE = (
     ("Organizer", "To Become an Organizer"),

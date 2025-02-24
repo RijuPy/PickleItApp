@@ -2,7 +2,7 @@ from django.contrib import admin
 from apps.pickleitcollection.models import *
 # Register your models here.
 
-
+admin.site.register(AdvertisementDurationRate)
 admin.site.register(Advertisement)
 admin.site.register(ChargeAmount)
 # admin.site.register(PaymentTable)

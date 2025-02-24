@@ -6,7 +6,7 @@ admin.site.register(Team)
 admin.site.register(Player)
 admin.site.register(SaveLeagues)
 admin.site.register(PaymentDetailsForRegister)
-
+admin.site.register(LeaguesCancellationPolicy)
 
 #Tournament Details(Old)
 admin.site.register(LeaguesTeamType)
@@ -114,3 +114,6 @@ class RoundRobinGroupAdmin(admin.ModelAdmin):
     list_display = ('league_for', 'court', 'number_sets', 'all_games_status')
     list_filter = ('all_games_status',)
     search_fields = ('league_for__name', 'court')
+
+admin.site.register(TournamentScoreApproval)
+admin.site.register(TournamentScoreReport)

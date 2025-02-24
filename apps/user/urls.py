@@ -66,4 +66,21 @@ urlpatterns = [
     path('08bc449c35a83013fb348bd43d1819ba5afb9b98c24a188d1d415e9c3042f343/', views.location_update_alert, name='location_update_alert'),
     path('f568583ac433f6fab22fea90553f686bf2d3bda2803b87d59e258fd6c2c89a4f/', views.update_location, name='update_location'),
 
+    path('8d3e22849e1f4c18aac6c68eed5b266a7a601ba33e492c2294dba21a58a4c9a7/', views.get_all_subscription_plans, name="get_all_subscription_plans"),
+    path('e8317028736d21c7b3ba4b39c6e0c76c3b9a11bc505c12970d079c0ad93a9d44/', views.get_features_list, name='get_features_list'),
+    path('61b6a81350b9adc3cae0d14f1c4ba172772c555eeedbf731f0510b822b321f2e/', views.subscribe_any_plan, name="subscribe_any_plan"),
+    # path('15d646566eedba7d8dc1c596a65565d3a3b19259c00ed86d89385bddfb024d33/<str:payment_for>/<str:encoded_data>/<str:checkout_session_id>/', views.payment_for_subscription, name='payment_for_subscription'),
+
+    path('dbb6d176341d5d81bdee8a28f0a05d304cc8cdc9e9b2ec2ec24300f5152c9fb7/', views.get_wallet_details, name='get_wallet_details'),
+    path('1e7de31e7ed580d28d4c228896ee0ec78cdf986b20600da93177d418951bf2ed/', views.add_money_to_wallet, name='add_money_to_wallet'),
+    path('285631b6075a10ddfc536d3d9be994d05a932abc3d6f091fabe8e7aa77ccfd25/<str:payment_for>/<str:encoded_data>/<str:checkout_session_id>/', views.payment_for_adding_money_to_wallet, name='payment_for_adding_money_to_wallet'),
+    path('1da6ebc0ac3470221ba64945ed545846258eff24ceed59f9f55f1e39767fe846/', views.get_all_wallet_transactions, name="get_all_wallet_transactions"),
+    # path('32dfc2439fca9be234dc7a71989552dc5af1452eee631e3eb20cf60de148054f/', views.find_user_all_details, name='find_user_all_details'),
+
+    path('da29d8d1ee85757c5874ee8ca386d55d6a280605b9a90d12d0e650b9b8c90133/', views.create_withdrawal_request, name='create_withdrawal_request'),
+    path('fcd146d98382e46e214953efcf8ba98d4a88dc393e5d6fa180f8437ea2866111/', views.withdrawal_request_list, name="withdrawal_request_list"),
+    path('1762dc10d13831e19df9296ed02937c557f40d5f2cfb0cb8c8c345c5e9e6755a/', views.get_user_subscription_details, name="get_user_subscription_details"),
+
+    path('wallet_genarator/', views.genarate_wallet, name="genarate_wallet")
+
 ]

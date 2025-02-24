@@ -2,6 +2,7 @@ import json
 import random
 import requests
 from xhtml2pdf import pisa
+from decimal import Decimal
 import jwt, re, base64, uuid
 from datetime import datetime, date, timedelta
 
@@ -23,6 +24,7 @@ from apps.pickleitcollection.views import *
 from apps.pickleitcollection.models import *
 from apps.team.views import notify_edited_player, haversine
 from apps.user.models import User, Role, PDFFile
+from apps.user.serializers import *
 
 from rest_framework.response import Response
 from rest_framework import serializers, status
@@ -194,6 +196,7 @@ def user_login_api(request):
             algorithm = 'HS384'
             token = jwt.encode(payload, secret_key_base64, algorithm=algorithm)
             refresh_token = jwt.encode({'uuid': str(user.uuid)}, secret_key_base64, algorithm=algorithm)
+
             check_room = NotifiRoom.objects.filter(user=user)
             if check_room.exists():
                 room_name = check_room.first().name
@@ -203,6 +206,23 @@ def user_login_api(request):
                 room = NotifiRoom.objects.create(user=user, name=room_name)
                 room = NotifiRoom.objects.filter(user__id=user.id)
                 NotificationBox.objects.create(room=room.first(),titel=f"Profile completion.",text_message=f"Hi {user.username} Welcome to PickleIT! Remember to fully update your profile.", notify_for=user)
+
+            subscription = Subscription.objects.filter(user=user, end_date__gte=now()).first()
+            if subscription: 
+                plan_id = subscription.plan.id               
+                plan_name = subscription.plan.name
+                plan_price = subscription.plan.price                
+                start_date = subscription.start_date.strftime('%Y-%m-%d')
+                end_date = subscription.end_date.strftime('%Y-%m-%d')
+                is_active = subscription.is_active()                
+            else:
+                plan_id = None
+                plan_name = None
+                plan_price = None                
+                start_date = None
+                end_date = None
+                is_active = False
+
             data = {
                 'status': status.HTTP_200_OK,
                 'jwt': token,
@@ -212,7 +232,13 @@ def user_login_api(request):
                 "self_ranking":user.is_rank,
                 'is_organizer': user.is_organizer,
                 "message":"Successfully logged in",  
-                "test":"okay",              
+                "test":"okay", 
+                "subscription_plan_id": plan_id,
+                "subscription_plan_name": plan_name,
+                "subscription_plan_price": plan_price,
+                "subscription_start_date": start_date,
+                "subscription_end_date": end_date,
+                "subscription_is_active": is_active     
             }
         elif user is not None and user.get_role() is not None and not user.is_verified :
             data = {
@@ -1304,6 +1330,31 @@ def user_profile_view_using_pagination(request):
                                           'is_admin','is_team_manager','is_player','is_coach','is_organizer','is_ambassador','is_sponsor', 'latitude',
                                           'longitude', 'permanent_location', 'current_location')
             
+            wallet = getattr(get_user, 'wallet', None)
+            if wallet:
+                wallet_id = wallet.id
+                wallet_balance = wallet.balance
+                wallet_created_at = wallet.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                
+            else:
+                wallet_id = None
+                wallet_balance = 0.0,
+                wallet_created_at = None
+            
+            subscription = Subscription.objects.filter(user=get_user, end_date__gte=now()).first()
+            if subscription:
+                subscription_data = {
+                    "plan_id": subscription.plan.id,
+                    "plan_name": subscription.plan.name,
+                    "plan_price": subscription.plan.price,
+                    "description": subscription.plan.description,
+                    "start_date": subscription.start_date.strftime('%Y-%m-%d'),
+                    "end_date": subscription.end_date.strftime('%Y-%m-%d'),
+                    "is_active": subscription.is_active()
+                }
+            else:
+                subscription_data = None
+            
             user_rank = get_user.rank
             if user_rank == "null" or user_rank == "" or  not user_rank:
                 user_rank = 1
@@ -1322,8 +1373,12 @@ def user_profile_view_using_pagination(request):
                     # If the value is an empty string or "null", set it to None
                     if value == "" or value == "null":
                         user[key] = None
+
+                user["wallet_id"] = wallet_id
+                user['wallet_balance'] = wallet_balance
+                user['wallet_created_at'] = wallet_created_at
             
-            data["status"], data['data'], data["message"] = status.HTTP_200_OK, {"user_data": user_data, "player_data":""}, "Data found"
+            data["status"], data['data'], data["message"] = status.HTTP_200_OK, {"user_data": user_data, "subscription_data": subscription_data, "player_data":""}, "Data found"
             counter = 0
             if get_user.is_player and counter == 0:
                 # print("hit")
@@ -2810,3 +2865,778 @@ def update_location(request):
     except Exception as e :
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
+
+@api_view(['GET'])
+def get_all_subscription_plans(request):
+    """
+    Retrieves all subscription plans with their associated features.
+    """
+    data = {"status": "", "message": ""} 
+
+    try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key') 
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        
+        if not check_user.exists():
+            return Response({
+                "data": [],
+                "status": status.HTTP_401_UNAUTHORIZED, 
+                "message": "Unauthorized access"
+            })
+        get_user = check_user.first()
+        # Fetch all subscription plans along with their related features
+        all_subscription_plans = SubscriptionPlan.objects.prefetch_related('features').all()
+        serializer = SubscriptionPlanSerializer(all_subscription_plans, many=True, context={'user': get_user})
+
+        data["data"] = serializer.data
+        data["status"] = status.HTTP_200_OK
+        data["message"] = "Data fetched successfully."
+
+    except Exception as e:
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"Error: {e}"
+
+    return Response(data)
+
+    
+@api_view(('GET',))
+def get_features_list(request):
+    data = {"status": "", "message": "", "data": []} 
+    try:
+        # Authenticate User
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key') 
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        
+        if not check_user.exists():
+            return Response({
+                "data": [],
+                "status": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized access"
+            })
+
+        # Get all features
+        features = Features.objects.all()
+        all_plans = SubscriptionPlan.objects.values_list('name', flat=True)
+
+        feature_list = []
+        for feature in features:
+            feature_plans = feature.plan.values_list('name', flat=True) 
+            feature_data = {
+                "id": feature.id,
+                "name": feature.name,
+                "description": feature.description,
+                "plans_status": {plan: plan in feature_plans for plan in all_plans} 
+            }
+            feature_list.append(feature_data)
+
+        # Response Data
+        data["status"] = status.HTTP_200_OK
+        data["message"] = "Feature list fetched successfully"
+        data["data"] = feature_list
+        return Response(data)
+    except Exception as e:
+        data["status"], data["message"] = status.HTTP_400_BAD_REQUEST, str(e)
+        return Response(data, status=status.HTTP_400_BAD_REQUEST)
+        
+
+# @api_view(('POST',))
+# def subcribe_any_plan(request):
+#     data = {"status": "", "message": ""} 
+#     try:
+#         # Authenticate User
+#         user_uuid = request.data.get('user_uuid')
+#         user_secret_key = request.data.get('user_secret_key')
+#         plan_id = request.data.get("plan_id")
+#         subscription_type = request.data.get("subscription_type")
+#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+
+#         if not check_user.exists():
+#             return Response({                
+#                 "status": status.HTTP_401_UNAUTHORIZED,
+#                 "message": "Unauthorized access"
+#             })
+#         check_plan = SubscriptionPlan.objects.filter(id=int(plan_id))
+
+#         if not check_plan.exists():
+#             return Response({
+#                 "status": status.HTTP_400_BAD_REQUEST,
+#                 "message": "Invalid plan"
+#             })
+#         get_user = check_user.first()
+#         get_plan = check_plan.first()
+                
+#         if get_plan.name == "Free":
+#             create_subscription = Subscription.objects.create(user_id=get_user.id, plan_id=get_plan.id)
+#             # Response Data
+#             data["status"] = status.HTTP_200_OK
+#             data["message"] = "Subscribed to the free plan successfully"
+            
+#             return Response(data)
+#         else:
+#             stripe.api_key = settings.STRIPE_SECRET_KEY
+#             print(stripe.api_key)
+#             product_name = f"Payment For {get_plan.name} Subscription"
+#             product_description = "Payment received by Pickleit"   
+#             if get_user.stripe_customer_id:
+#                 stripe_customer_id = get_user.stripe_customer_id
+#             else:
+#                 customer = stripe.Customer.create(email=get_user.email)
+#                 stripe_customer_id = customer["id"]
+#                 get_user.stripe_customer_id = stripe_customer_id
+#                 get_user.save()
+
+#             if subscription_type == "monthly":
+#                 charge_amount = round((get_plan.price / get_plan.duration_days) * 30, 2) if get_plan.duration_days >= 30 else get_plan.price
+
+#             elif subscription_type == "annually":
+#                 charge_amount = round((get_plan.price / get_plan.duration_days) * 365, 2) if get_plan.duration_days < 365 else get_plan.price
+
+#             payment_data = json.dumps({"plan_name": get_plan.name, "plan_id": get_plan.id}).encode('utf-8')
+#             encoded_data = base64.b64encode(payment_data).decode('utf-8')
+
+#             host = request.get_host()
+#             protocol = "https"
+#             payment_for = (
+#                 "Paid" if get_plan.name == "Paid with upgrade" else
+#                 "Pro" if get_plan.name == "Pro" else
+#                 "Enterprise"
+#             )
+#             current_site = f"{protocol}://{host}"
+#             print(current_site)
+#             success_url = f"{current_site}/user/15d646566eedba7d8dc1c596a65565d3a3b19259c00ed86d89385bddfb024d33/{payment_for}/{encoded_data}/{{CHECKOUT_SESSION_ID}}/"
+#             cancel_url = f"{current_site}/payment/cancel/"
+#             print(success_url)
+#             product = stripe.Product.create(name=product_name, description=product_description)
+#             price = stripe.Price.create(unit_amount=int(charge_amount * 100), currency='usd', product=product.id)
+
+#             checkout_session = stripe.checkout.Session.create(
+#                 customer=stripe_customer_id,
+#                 line_items=[{"price": price.id, "quantity": 1}],
+#                 mode='payment',
+#                 success_url=success_url,
+#                 cancel_url=cancel_url,
+#             )
+
+#             return Response({"stripe_url": checkout_session.url})
+
+#     except Exception as e:
+#         return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+
+
+# @api_view(['GET'])
+# def payment_for_subscription(request, payment_for, encoded_data, checkout_session_id):
+#     try:
+#         stripe.api_key = settings.STRIPE_SECRET_KEY
+#         payment_info = stripe.checkout.Session.retrieve(checkout_session_id)        
+
+#         stripe_customer_id = payment_info["customer"]
+#         payment_status = payment_info["payment_status"]
+#         amount_total = float(payment_info["amount_total"]) / 100
+#         payment_method_types = payment_info["payment_method_types"]
+        
+#         # Decode payment data
+#         decoded_data = base64.b64decode(encoded_data)
+#         request_data = json.loads(decoded_data.decode('utf-8'))
+
+#         get_user = User.objects.filter(stripe_customer_id=stripe_customer_id).first()
+        
+#         if not get_user:
+#             return render(request, "failed_payment.html")
+
+#         check_existing_payment = Payment.objects.filter(checkout_session_id=checkout_session_id, user=get_user)
+#         if check_existing_payment.exists():
+#             existing_payment = check_existing_payment.first()
+#             if existing_payment.status == "Completed":
+#                 return render(request, "success_payment.html", {"charge_for": payment_for, "expires_time": existing_payment.subscription.end_date})
+
+#         # Save Payment       
+#         payment = Payment.objects.create(
+#             user=get_user,
+#             amount=amount_total,
+#             checkout_session_id=checkout_session_id,
+#             payment_mode=", ".join(payment_method_types),
+#             status="Completed" if payment_status == "paid" else "Failed"
+#         )
+
+#         if payment_status == "paid":            
+#             # Create Subscription only for successful payments
+#             plan = SubscriptionPlan.objects.filter(id=request_data["plan_id"]).first()
+#             if plan:
+#                 subscription = Subscription.objects.create(
+#                     user=get_user,
+#                     plan=plan,
+#                     end_date=now() + timedelta(days=plan.duration_days)
+#                 )
+#                 payment.subscription = subscription
+#                 payment.save()
+
+#                 return render(request, "success_payment.html", {"charge_for": payment_for, "expires_time": subscription.end_date})
+        
+#         return render(request, "failed_payment.html")
+
+#     except Exception as e:
+#         return render(request, "failed_payment.html", {"error": str(e)})
+
+
+@api_view(('POST',))
+def subscribe_any_plan(request):
+    data = {"status": "", "message": ""} 
+    try:
+        # Authenticate User
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        plan_id = request.data.get("plan_id")
+        subscription_type = request.data.get("subscription_type")
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+
+        if not check_user.exists():
+            return Response({                
+                "status": status.HTTP_401_UNAUTHORIZED,
+                "message": "Unauthorized access"
+            })
+        check_plan = SubscriptionPlan.objects.filter(id=int(plan_id))
+
+        if not check_plan.exists():
+            return Response({
+                "status": status.HTTP_400_BAD_REQUEST,
+                "message": "Invalid plan"
+            })
+        get_user = check_user.first()
+        get_plan = check_plan.first()
+                
+        if get_plan.name == "Free":
+            Subscription.objects.create(user_id=get_user.id, plan_id=get_plan.id)
+            # Response Data
+            data["status"] = status.HTTP_200_OK
+            data["message"] = "Subscribed to the free plan successfully"
+            
+            return Response(data)
+        else:           
+
+            if subscription_type == "monthly":
+                charge_amount = round((get_plan.price / get_plan.duration_days) * 30, 2) if get_plan.duration_days >= 30 else get_plan.price
+
+            elif subscription_type == "annually":
+                charge_amount = round((get_plan.price / get_plan.duration_days) * 365, 2) if get_plan.duration_days < 365 else get_plan.price
+
+            check_wallet = Wallet.objects.filter(user=get_user)
+            if not check_wallet.exists():
+                return Response(
+                    {"status": status.HTTP_404_NOT_FOUND, "message": "No wallet found.", "data": []}
+                )
+            
+            get_wallet = check_wallet.first()
+            balance = get_wallet.balance
+
+            plan = SubscriptionPlan.objects.filter(id=int(plan_id)).first()                
+            if not plan:
+                return Response(
+                {"status": status.HTTP_404_NOT_FOUND, "message": "Invalid plan.", "data": []}
+            )
+            if float(balance) >= float(charge_amount):
+                
+                Subscription.objects.create(
+                    user=get_user,
+                    plan=plan,
+                    end_date=now() + timedelta(days=plan.duration_days)
+                )
+                WalletTransaction.objects.create(
+                        sender = get_user,
+                        reciver = None,
+                        amount = Decimal(charge_amount),
+                        admin_cost = Decimal(charge_amount),
+                        getway_charge = 0,
+                        transaction_type="debit",
+                        transaction_for="Subscription",
+                        payment_id=None,  # Fixed the typo
+                        description=f"${charge_amount} is debited from your PickleIt wallet for {plan.name} subscription."
+                        )
+                get_wallet.balance = Decimal(float(get_wallet.balance) - float(charge_amount))
+                get_wallet.save()
+
+                admin_wallet = Wallet.objects.filter(user__is_superuser=True).first()
+                admin_balance = float(admin_wallet.balance) + float(charge_amount)
+                admin_wallet.balance = Decimal(admin_balance)
+                admin_wallet.save()
+
+                # admin_wallet = AdminWallet.objects.first()
+                # stripe_fee = (float(charge_amount) * 0.029) + 0.30
+                # final_amount = float(charge_amount) - float(stripe_fee)
+
+                # AdminWalletTransaction.objects.create(
+                #     wallet=admin_wallet,
+                #     transaction_type="credit",
+                #     amount=Decimal(final_amount),
+                #     payment_id=None,  # Fixed the typo
+                #     description=f"${final_amount} is credited to admin wallet for {plan.name} subscription of {get_user.username}."
+                # )
+                # send notification to admin
+                admin_users = User.objects.filter(is_admin=True).values_list('id', flat=True)
+                title = "New Subscription created."
+                message = f"{get_user.first_name} {get_user.last_name} has subscribed to {plan.name}."
+                for user_id in admin_users:
+                    notify_edited_player(user_id, title, message)
+                
+                data['status'] = status.HTTP_200_OK
+                data["message"] = f"You have successfully subscribed to {plan.name} subscription and ${charge_amount} has been deducted from your wallet for this."
+
+            else:
+                remaining_amount = float(charge_amount) - float(balance)
+                data['status'] = status.HTTP_200_OK
+                data["message"] = f"Please add ${remaining_amount} to your wallet to subscribe to {plan.name} subscription." 
+
+            return Response(data) 
+
+    except Exception as e:
+        return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+
+
+@api_view(("GET",))
+def get_wallet_details(request):
+    """
+    Retrieves the details of a wallet.
+    """
+    data = {"status": "", "message": ""} 
+    try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response(
+                {"status": status.HTTP_401_UNAUTHORIZED, "message": "Unauthorized access", "data": []}
+            )
+
+        get_user = check_user.first()
+
+        check_wallet = Wallet.objects.filter(user=get_user)
+        if not check_wallet.exists():
+            return Response(
+                {"status": status.HTTP_400_BAD_REQUEST, "message": "Wallet not found", "data": []}
+            )
+
+        get_wallet = check_wallet.first()
+
+        wallet_data = {
+            "user": get_user.username,
+            "wallet_id": get_wallet.id,
+            "balance": float(get_wallet.balance), 
+            "created_at": get_wallet.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": get_wallet.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+        return Response(
+            {"status": status.HTTP_200_OK, "message": "Wallet details retrieved successfully", "data": wallet_data}
+        )
+    except Exception as e:
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"Error: {e}"
+
+    return Response(data)
+
+
+@api_view(("POST",))
+def add_money_to_wallet(request):
+    """
+    Adds money to wallet.
+    """
+    data = {"status": "", "message": ""} 
+    try:
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key') 
+        wallet_id = request.data.get('wallet_id')
+        amount= float(request.data.get('amount')) 
+        print(amount, type(amount))
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response({
+                "data": [],
+                "status": status.HTTP_401_UNAUTHORIZED, 
+                "message": "Unauthorized access"
+            })
+        
+        get_user = check_user.first() 
+
+        check_wallet = Wallet.objects.filter(id=int(wallet_id), user=get_user)
+        if not check_wallet.exists():            
+            return Response({
+                "data": [],
+                "status": status.HTTP_400_BAD_REQUEST, 
+                "message": "Invalid wallet."
+            })
+        
+        get_wallet = check_wallet.first()
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        
+        product_name = f"Payment for adding money to wallet"
+        product_description = "Payment received by Pickleit"   
+        if get_user.stripe_customer_id:
+            stripe_customer_id = get_user.stripe_customer_id
+        else:
+            customer = stripe.Customer.create(email=get_user.email)
+            stripe_customer_id = customer["id"]
+            get_user.stripe_customer_id = stripe_customer_id
+            get_user.save()     
+        
+        payment_data = json.dumps({"wallet_id": get_wallet.id, "amount": amount}).encode('utf-8')
+        encoded_data = base64.b64encode(payment_data).decode('utf-8')
+
+        host = request.get_host()
+        protocol = "https"
+        payment_for = "Add_money_to_wallet"
+        current_site = f"{protocol}://{host}"
+        
+        success_url = f"{current_site}/user/285631b6075a10ddfc536d3d9be994d05a932abc3d6f091fabe8e7aa77ccfd25/{payment_for}/{encoded_data}/{{CHECKOUT_SESSION_ID}}/"
+        cancel_url = f"{current_site}/payment/cancel/"
+        print(success_url)
+        product = stripe.Product.create(name=product_name, description=product_description)
+        price = stripe.Price.create(unit_amount=int(amount* 100), currency='usd', product=product.id)
+
+        checkout_session = stripe.checkout.Session.create(
+            customer=stripe_customer_id,
+            line_items=[{"price": price.id, "quantity": 1}],
+            mode='payment',
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+
+        return Response({"stripe_url": checkout_session.url})
+
+    except Exception as e:
+        return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+
+
+@api_view(['GET',])
+def payment_for_adding_money_to_wallet(request, payment_for, encoded_data, checkout_session_id):
+    try:
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        payment_info = stripe.checkout.Session.retrieve(checkout_session_id)        
+
+        stripe_customer_id = payment_info["customer"]
+        payment_status = payment_info["payment_status"]
+        amount_total = Decimal(str(float(payment_info["amount_total"]) / 100))
+        payment_method_types = payment_info["payment_method_types"]
+        
+        # Decode payment data
+        decoded_data = base64.b64decode(encoded_data)
+        request_data = json.loads(decoded_data.decode('utf-8'))
+
+        get_user = User.objects.filter(stripe_customer_id=stripe_customer_id).first()
+        print(get_user, payment_status)
+        
+        if not get_user:
+            return render(request, "failed_payment.html")
+
+        check_existing_payment = AllPaymentsTable.objects.filter(checkout_session_id=checkout_session_id, user=get_user)
+        if check_existing_payment.exists():
+            existing_payment = check_existing_payment.first()
+            if existing_payment.status == "Completed":
+                return render(request, "success_payment.html", {"charge_for": payment_for})
+
+        # Save Payment       
+        AllPaymentsTable.objects.create(
+            user=get_user,
+            amount=amount_total,
+            checkout_session_id=checkout_session_id,
+            payment_mode=", ".join(payment_method_types),
+            payment_for = payment_for,
+            status="Completed" if payment_status == "paid" else "Failed"
+        )
+
+        if payment_status == "paid":    
+            stripe_fee = Decimal(str((amount_total * Decimal("0.029")) + Decimal("0.30")))  
+            final_amount = amount_total - stripe_fee
+
+            wallet = Wallet.objects.filter(user=get_user, id=request_data["wallet_id"]).first()
+            # print(wallet)
+            if wallet:
+                try:
+                    transaction = WalletTransaction.objects.create(
+                        # wallet=wallet,
+                        sender = get_user,
+                        reciver = get_user,
+                        amount = Decimal(final_amount),
+                        admin_cost = 0,
+                        getway_charge = stripe_fee,
+                        transaction_for="AddMoney",
+                        transaction_type="credit",
+                        payment_id=checkout_session_id,  # Fixed the typo
+                        description=f"${final_amount} is added to your PickleIt wallet."
+                    )
+                    wallet.balance = Decimal(float(wallet.balance) + float(amount_total))
+                    wallet.save()
+                    # print(f"Transaction created successfully: {transaction}")
+                except Exception as e:
+                    # print(f"Error creating transaction: {e}")
+                    return render(request, "failed_payment.html", {"error": "Transaction creation failed."})
+
+                return render(request, "success_payment.html", {"charge_for": payment_for})
+        else:
+            return render(request, "failed_payment.html")
+
+    except Exception as e:
+        return render(request, "failed_payment.html", {"error": str(e)})
+    
+
+@api_view(("GET",))
+def get_all_wallet_transactions(request):
+    """
+    Retrieves all transactions associated with a wallet.
+    """
+    data = {"status": "", "message": ""} 
+    try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key') 
+        wallet_id = request.GET.get('wallet_id')
+        filter_type = request.GET.get('filter')
+
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response({
+                "data": [],
+                "status": status.HTTP_401_UNAUTHORIZED, 
+                "message": "Unauthorized access"
+            })
+        
+        get_user = check_user.first()
+
+        check_wallet = Wallet.objects.filter(id=int(wallet_id), user=get_user)
+        if not check_wallet.exists():            
+            return Response({
+                "data": [],
+                "status": status.HTTP_400_BAD_REQUEST, 
+                "message": "Invalid wallet."
+            })
+        
+        get_wallet = check_wallet.first()
+        transactions = WalletTransaction.objects.filter(Q(sender=get_user) | Q(reciver=get_user)).order_by('-created_at')
+        
+        if filter_type == "last_10":
+            transactions = transactions.filter(created_at__gte=now() - timedelta(days=10))
+        elif filter_type == "last_1_month":
+            transactions = transactions.filter(created_at__gte=now() - timedelta(days=30))
+        elif filter_type == "last_3_months":
+            transactions = transactions.filter(created_at__gte=now() - timedelta(days=90))
+        elif filter_type == "last_6_months":
+            transactions = transactions.filter(created_at__gte=now() - timedelta(days=180))
+        elif filter_type == "last_1_year":
+            transactions = transactions.filter(created_at__gte=now() - timedelta(days=365))
+        else:
+            transactions = transactions[:10]
+        
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        result_page = paginator.paginate_queryset(transactions, request)
+        serializer = WalletTransactionSerializer(result_page, many=True)
+        serialized_data = serializer.data       
+        
+        if not serialized_data:
+                data["status"] = status.HTTP_200_OK
+                data["count"] = 0
+                data["previous"] = None
+                data["next"] = None
+                data["data"] = []
+                data["message"] = "No Result found"
+        else:
+            paginated_response = paginator.get_paginated_response(serialized_data)
+            data["status"] = status.HTTP_200_OK
+            data["count"] = paginated_response.data["count"]
+            data["previous"] = paginated_response.data["previous"]
+            data["next"] = paginated_response.data["next"]
+            data["data"] = paginated_response.data["results"]
+            data["message"] = "Data found"        
+
+    except Exception as e:
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"Error: {e}"
+
+    return Response(data)
+
+
+@api_view(("POST",)) 
+def create_withdrawal_request(request):
+    """
+    Requests for withdrawal of money from wallet.
+    """
+    data = {"status": "", "message": ""} 
+    try:
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')         
+        amount= request.data.get('amount')
+
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response({
+                "data": [],
+                "status": status.HTTP_401_UNAUTHORIZED, 
+                "message": "Unauthorized access"
+            })
+        
+        get_user = check_user.first() 
+
+        check_wallet = Wallet.objects.filter(user=get_user)
+        if not check_wallet.exists():            
+            return Response({
+                "data": [],
+                "status": status.HTTP_400_BAD_REQUEST, 
+                "message": "Invalid wallet."
+            })
+        
+        get_wallet = check_wallet.first()
+
+        balance = get_wallet.balance
+        if float(amount) > float(balance):
+            return Response({
+                "data": [],
+                "status": status.HTTP_400_BAD_REQUEST, 
+                "message": "Insufficient balance in wallet."
+            })
+        
+        withdrawal_request = WithdrawalRequest.objects.create(
+            user=get_user,
+            amount = Decimal(amount),
+            status="pending"
+        )
+        # Send notification to admin
+        admin_users = User.objects.filter(is_admin=True, is_superuser=True).values_list('id', flat=True)
+        title = "Money withdrawal request."
+        message = f"{get_user.first_name} {get_user.last_name} has requested for withdrawal of amount ${withdrawal_request.amount}."
+        for user_id in admin_users:
+            notify_edited_player(user_id, title, message)        
+
+        data["status"] = status.HTTP_200_OK
+        data["message"] = f"Withdrawal request of amount ${withdrawal_request.amount} has been sent successfully."
+        return Response(data)
+    
+    except Exception as e:
+        return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+
+
+@api_view(("GET",)) 
+def withdrawal_request_list(request):
+    """
+    Requests for withdrawal of money from wallet.
+    """
+    data = {"status": "", "message": ""} 
+    try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key') 
+        filter = request.GET.get('filter')
+
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response({
+                "data": [],
+                "status": status.HTTP_401_UNAUTHORIZED, 
+                "message": "Unauthorized access"
+            })
+
+        get_user = check_user.first() 
+
+        withdrawal_requests = WithdrawalRequest.objects.filter(user=get_user).order_by('-created_at')
+
+        if filter == "pending":
+            withdrawal_requests = withdrawal_requests.filter(status="pending")
+
+        elif filter == "approved":
+            withdrawal_requests = withdrawal_requests.filter(status="approved")
+
+        elif filter == "rejected":
+            withdrawal_requests = withdrawal_requests.filter(status="rejected")
+
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        result_page = paginator.paginate_queryset(withdrawal_requests, request)
+        serializer = WithdrawalRquestSerializer(result_page, many=True)
+        serialized_data = serializer.data       
+        
+        if not serialized_data:
+                data["status"] = status.HTTP_200_OK
+                data["count"] = 0
+                data["previous"] = None
+                data["next"] = None
+                data["data"] = []
+                data["message"] = "No Result found"
+        else:
+            paginated_response = paginator.get_paginated_response(serialized_data)
+            data["status"] = status.HTTP_200_OK
+            data["count"] = paginated_response.data["count"]
+            data["previous"] = paginated_response.data["previous"]
+            data["next"] = paginated_response.data["next"]
+            data["data"] = paginated_response.data["results"]
+            data["message"] = "Data found"
+
+        return Response(data)
+    except Exception as e:
+        return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+
+
+@api_view(("GET",)) 
+def get_user_subscription_details(request):
+    """
+    Fetches user's subscription details.
+    """
+    data = {"status": "", "message": "", "data": []} 
+    try:
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key') 
+        user_info = {}
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        
+        if not check_user.exists():
+            return Response({
+                "data": [],
+                "status": status.HTTP_401_UNAUTHORIZED, 
+                "message": "Unauthorized access"
+            })
+
+        get_user = check_user.first()
+        user_info["rank"] = get_user.rank
+        try:
+            image = get_user.image.url if get_user.image not in ["null", None, "", " "] else None
+        except:
+            image = None
+
+        user_info["first_name"] = get_user.first_name
+        user_info["last_name"] = get_user.last_name
+        user_info["is_rank"] = get_user.is_rank
+        user_info["profile_image"] = image
+
+        subscription = Subscription.objects.filter(user=get_user, end_date__gte=now()).first()
+        if subscription: 
+            plan_id = subscription.plan.id               
+            plan_name = subscription.plan.name
+            plan_price = subscription.plan.price                
+            start_date = subscription.start_date.strftime('%Y-%m-%d')
+            end_date = subscription.end_date.strftime('%Y-%m-%d')
+            is_active = subscription.is_active()                
+        else:
+            plan_id = None
+            plan_name = None
+            plan_price = None                
+            start_date = None
+            end_date = None
+            is_active = False
+        user_info["subscription_plan_id"] = plan_id
+        user_info["subscription_plan_name"] = plan_name
+        user_info["subscription_plan_price"] = plan_price
+        user_info["subscription_start_date"] = start_date
+        user_info["subscription_end_date"] = end_date
+        user_info["subscription_is_active"] = is_active 
+
+        data["status"] = status.HTTP_200_OK
+        data["message"] = "User information fetched successfully."
+        data["data"] = user_info
+        return Response(data)
+    except Exception as e:
+        return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+    
+
+
+@api_view(('GET',))
+def genarate_wallet(request):
+    try :
+        for user in User.objects.all():
+            Wallet.objects.create(user=user, balance=10)
+        return Response({"data":True})
+    except Exception as e :
+        return Response({"data":False})

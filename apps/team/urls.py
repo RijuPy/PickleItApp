@@ -81,6 +81,9 @@ urlpatterns = [
     path('098aab95e8c33f89813be83b47ee59c8c7d61e1954ec258b49b4cf12f7e61626/', views.add_team_to_leagues, name="add_team_to_leagues"),
     path('c80e2caf03546f11a39db8703fb7f7457afc5cb20db68b5701497fd992a0c29f/<int:charge_for>/<str:my_data>/<str:checkout_session_id>/', views.payment_for_team_registration, name="payment_for_team_registration"),
 
+    #### New updated for wallet implementation
+    path('fe8a7fba1488235d4d7fcd16de80104e24910fc0f53d4e5cfed6234ace66ddb2/', views.register_teams_to_league, name='register_teams_to_league'),
+
 
     path('a8b080954e46cf104488b5229283a70863b4177524442bb148efbc5f28d0b144/', views.player_or_manager_details, name="player_or_manager_details"),
     path('c43ecd81b003f2be96ea3377de9aaa375f0abb5d370dee415e299d0d108ad855/', views.registered_team_for_leauge_list, name="registered_team_for_leauge_list"),

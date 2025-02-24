@@ -181,23 +181,17 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ["id","uuid","secret_key","first_name","last_name"]
 
 
-class CancellationPolicySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LeaguesCancellationPolicy
-        fields = ["within_day", "refund_percentage"]
-
 class LeagueSerializer(serializers.ModelSerializer):
     leagues_team_type = serializers.SerializerMethodField()
     leagues_pesrson_type = serializers.SerializerMethodField()
     registered_team = TeamSerializer(many=True, read_only=True)
     leagues_createdUserBy = serializers.SerializerMethodField()
     add_organizer = UserSerializer(many=True, read_only=True)
-    policy = CancellationPolicySerializer(many=True, read_only=True)
     class Meta:
         model = Leagues
         fields = ["id","uuid","secret_key","name","registration_start_date","registration_end_date","leagues_start_date","leagues_end_date",
                   "image","play_type","leagues_team_type","leagues_pesrson_type","league_type","location","latitude","longitude","street","city","state","postal_code",
-                  "country","max_number_team","registered_team","add_organizer","leagues_createdUserBy","policy"]
+                  "country","max_number_team","registered_team","add_organizer","leagues_createdUserBy"]
         
     def get_leagues_team_type(self, obj):
         team_type = obj.team_type.name 

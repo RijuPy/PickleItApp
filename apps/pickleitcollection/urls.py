@@ -11,6 +11,10 @@ urlpatterns = [
     path('0a17353ad39c003075afffecbfe253e381bc9c331fb1b06a0ac18a7734116f98/', views.create_advertisement, name="craete_advertisement"),
     path('9671103725bb2e332ec083861133f7c0dad8e72b039e76bcdff4a102d453b66a/<str:charge_for>/<str:my_data>/<str:checkout_session_id>/', views.payment_for_advertisement, name="payment_for_advertisement"),
 
+    #new updated
+    path('f1918c2695c6912e1bb23e8dc82b8e2bbea40ab3915ba49f41ab1ab93abb849b/', views.advertisement_rate_list, name='advertisement_rate_list'),
+    path('de87afae922fcc9bda9722f6ae4899b1e1c97d40cf544675760f28a34d56c28c/', views.advertisement_add, name='advertisement_add'),
+    
     path('aba97dd0cccde47371ac92197491a84aa60ae487fa3e5bde82e360f8eda27879/', views.list_advertisement, name="list_advertisement"),
     path('ae35895453a924b6d8931bf5c43e1dc0b50da42e10f1875106ea289b73765741/', views.list_advertisement_for_app, name="list_advertisement_for_app"),
     

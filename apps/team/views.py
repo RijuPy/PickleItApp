@@ -1677,6 +1677,207 @@ def send_team_member_notification(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
+
+# @api_view(('POST',))
+# def create_leagues(request):
+#     data = {'status':'','data':[],'message':''}
+#     try:        
+#         user_uuid = request.data.get('user_uuid')
+#         user_secret_key = request.data.get('user_secret_key')
+#         name = request.data.get('name')
+#         leagues_start_date = request.data.get('leagues_start_date')
+#         leagues_end_date = request.data.get('leagues_end_date')
+#         registration_start_date = request.data.get('registration_start_date')
+#         registration_end_date = request.data.get('registration_end_date')
+#         team_type = request.data.get('team_type')
+#         play_type = request.data.get('play_type')
+#         team_person = request.data.get('team_person')
+#         location = request.data.get('location')
+#         city = request.data.get('city')
+#         others_fees = request.data.get('others_fees')
+#         max_number_team = request.data.get('max_number_team')
+#         registration_fee = request.data.get('registration_fee')
+#         description = request.data.get('description')
+#         image = request.FILES.get('image')
+#         team_type = json.loads(team_type)
+#         team_person = json.loads(team_person)
+#         others_fees = json.loads(others_fees)
+#         league_type = request.data.get('league_type')
+#         invited_code = request.data.get('invited_code')
+
+#         start_rank = request.data.get('start_rank') 
+#         end_rank = request.data.get('end_rank')       
+        
+#         if int(max_number_team) % 2 != 0 or int(max_number_team) == 0 or int(max_number_team) == 1:
+#             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "Max number of team must be even"
+#             return Response(data)
+#         leagues_start_date = datetime.strptime(leagues_start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+#         leagues_end_date = datetime.strptime(leagues_end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+#         registration_start_date = datetime.strptime(registration_start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+#         registration_end_date = datetime.strptime(registration_end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+#         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+#         leagues_id = []
+#         if check_user.exists() and check_user.first().is_admin or check_user.first().is_organizer:
+#             mesage_box = []
+#             counter = 0
+#             for kk in team_type:
+#                 check_leagues = LeaguesTeamType.objects.filter(name=str(kk))
+#                 check_person = LeaguesPesrsonType.objects.filter(name=str(team_person[counter]))
+                
+#                 if check_leagues.exists() and check_person.exists():
+#                     check_leagues_id = check_leagues.first().id
+#                     check_person_id = check_person.first().id
+#                     check_unq = Leagues.objects.filter(team_person_id=check_person_id,team_type_id=check_leagues_id,name=name,created_by=check_user.first())
+#                     if check_unq.exists():
+#                         message = f"{name}-{kk}"
+#                         mesage_box.append(message)
+#                         continue
+#                     else:
+#                         pass
+                
+#                 full_address = location
+#                 api_key = settings.MAP_API_KEY
+#                 state, country, pincode, latitude, longitude = get_address_details(full_address,api_key)
+
+#                 if latitude is None:
+#                     latitude = 38.908683
+#                 if longitude is None:
+#                     longitude = -76.937352
+#                 obj = GenerateKey()
+#                 secret_key = obj.gen_leagues_key()
+#                 save_leagues = Leagues(secret_key=secret_key,name=name,leagues_start_date=leagues_start_date,leagues_end_date=leagues_end_date,location=location,
+#                                     registration_start_date=registration_start_date,registration_end_date=registration_end_date,created_by_id=check_user.first().id,
+#                                     street=state,city=city,state=state,postal_code=pincode,country=country,max_number_team=max_number_team, play_type=play_type,
+#                                     registration_fee=registration_fee,description=description,image=image,league_type=league_type)
+#                 if league_type == "Invites only":
+#                     save_leagues.invited_code = invited_code 
+#                 cleaned_others_fees = {k: v for k, v in others_fees.items() if k and v is not None}
+#                 save_leagues.others_fees = cleaned_others_fees
+#                 # save_leagues.others_fees = others_fees
+#                 save_leagues.save() 
+                
+#                 # if lat is not None and long is not None:
+#                 save_leagues.latitude=latitude
+#                 save_leagues.longitude=longitude
+#                 save_leagues.save()
+#                 if start_rank and end_rank:
+#                     save_leagues.any_rank = False
+#                     save_leagues.start_rank = start_rank
+#                     save_leagues.end_rank = end_rank
+#                     save_leagues.save()
+#                 counter = counter+1
+#                 if check_leagues.exists() and check_person.exists():
+#                     check_leagues_id = check_leagues.first().id
+#                     check_person_id = check_person.first().id
+#                     save_leagues.team_type_id = check_leagues_id
+#                     save_leagues.team_person_id = check_person_id
+#                     save_leagues.save()
+#                 leagues_id.append(save_leagues.id)
+                
+#             result = []
+#             for dat in leagues_id:
+#                 main_data = Leagues.objects.filter(id=dat)
+#                 tournament_play_type = play_type
+#                 data_structure = [{"name": "Round Robin", "number_of_courts": 0, "sets": 0, "point": 0},
+#                           {"name": "Elimination", "number_of_courts": 0, "sets": 0, "point": 0},
+#                           {"name": "Final", "number_of_courts": 0, "sets": 0, "point": 0}]
+#                 for se in data_structure:
+#                     if tournament_play_type == "Group Stage":
+#                         se["is_show"] = True
+#                     elif tournament_play_type == "Round Robin": 
+#                         if se["name"] == "Round Robin":
+#                             se["is_show"] = True
+#                         else:
+#                             se["is_show"] = False
+#                     elif tournament_play_type == "Single Elimination":
+#                         if se["name"] != "Round Robin":
+#                             se["is_show"] = True
+#                         else:
+#                             se["is_show"] = False
+#                     elif tournament_play_type == "Individual Match Play":
+#                         if se["name"] == "Final":
+#                             se["is_show"] = True
+#                         else:
+#                             se["is_show"] = False 
+#                 pt = LeaguesPlayType.objects.create(type_name=save_leagues.play_type,league_for=main_data.first(),data=data_structure)
+#                 main_data = main_data.values()
+#                 for i in main_data:
+#                     i["team_type"] = LeaguesTeamType.objects.filter(id = i["team_type_id"]).first().name
+#                     i["team_person"] = LeaguesPesrsonType.objects.filter(id = i["team_person_id"]).first().name
+#                     user_first_name = check_user.first().first_name
+#                     user_last_name = check_user.first().last_name
+#                     i["created_by"] = f"{user_first_name} {user_last_name}"
+#                     i["play_type_data"] = list(LeaguesPlayType.objects.filter(id=pt.id).values())
+#                     del i ["team_person_id"]
+#                     del i ["team_type_id"]
+#                     del i ["created_by_id"]
+#                 result.append(main_data[0])
+#             message = ""
+#             if len(mesage_box) != 0:
+#                 for ij in mesage_box:
+#                     if message == "":
+#                         message = message+ij
+#                     else:
+#                         message = message + "," +ij
+#                 if len(mesage_box) == 1:
+#                     set_msg = f"{message} tournament already exists"
+#                 elif len(mesage_box) > 1:
+#                     set_msg = f"{message} tournaments already exist"
+#             else:
+#                 set_msg = "Tournament created successfully"
+#             data["status"], data["data"],data["message"] = status.HTTP_200_OK, result, set_msg
+#         else:
+#             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found."
+#     except Exception as e :
+#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+#     return Response(data)
+
+
+# @api_view(('POST',))
+# def create_play_type_details(request):
+#     data = {'status':'','data':[],'message':''}
+#     try:        
+#         user_uuid = request.data.get('user_uuid')
+#         user_secret_key = request.data.get('user_secret_key')
+#         total_data = request.data.get('data')
+#         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+#         if check_user.exists() and check_user.first().is_admin or check_user.first().is_organizer:
+#             my_result = []
+#             # print(len(total_data))
+#             for fo in total_data:
+#                 l_uuid = fo["l_uuid"]
+#                 l_secret_key = fo["l_secret_key"]
+#                 get_data = fo["data"]
+#                 Leagues_check = Leagues.objects.filter(uuid=l_uuid, secret_key=l_secret_key)
+#                 if Leagues_check.exists:
+#                     pt = LeaguesPlayType.objects.filter(league_for=Leagues_check.first())
+#                     pt_update = pt.update(data=get_data)
+#                     #league_data
+#                     league_data = Leagues_check.values()
+#                     # print(league_data)
+#                     for i in league_data:
+#                         i["team_type"] = LeaguesTeamType.objects.filter(id = i["team_type_id"]).first().name
+#                         i["team_person"] = LeaguesPesrsonType.objects.filter(id = i["team_person_id"]).first().name
+#                         user_first_name = check_user.first().first_name
+#                         user_last_name = check_user.first().last_name
+#                         i["created_by"] = f"{user_first_name} {user_last_name}"
+#                         i["play_type_data"] = list(LeaguesPlayType.objects.filter(id=pt.first().id).values())
+#                         del i ["team_person_id"]
+#                         del i ["team_type_id"]
+#                         del i ["created_by_id"]
+#                     # print(league_data[0])
+#                     my_result.append(league_data[0])
+#                 else:
+#                     my_result.append({"error":"League not found"})
+#             data["status"],data["data"], data["message"] = status.HTTP_200_OK,my_result,"Created playtype successfully"
+#         else:
+#             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found."
+#     except Exception as e :
+#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+#     return Response(data)
+
+
+
 #change1
 #check user
 @api_view(('POST',))
@@ -1887,6 +2088,9 @@ def create_play_type_details(request):
     except Exception as e :
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
+
+
+
 
 
 
@@ -3494,6 +3698,219 @@ def edit_leagues(request):
 
 
 # #new
+# @api_view(('POST',))
+# def set_tournamens_result(request):
+#     data = {'status': '', 'data': [], 'message': ''}
+#     try:        
+#         user_uuid = request.data.get('user_uuid')
+#         user_secret_key = request.data.get('user_secret_key')
+#         league_uuid = request.data.get('league_uuid')
+#         league_secret_key = request.data.get('league_secret_key')
+#         tournament_uuid = request.data.get('tournament_uuid')
+#         tournament_secret_key = request.data.get('tournament_secret_key')
+#         team1_point = request.data.get('team1_point')
+#         team2_point = request.data.get('team2_point')
+#         set_number = request.data.get('set_number')
+        
+#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+#         check_leagues = Leagues.objects.filter(uuid=league_uuid, secret_key=league_secret_key)
+#         tournament = Tournament.objects.filter(uuid=tournament_uuid, secret_key=tournament_secret_key, leagues=check_leagues.first())
+        
+#         if check_user.exists() and check_leagues.exists() and tournament.exists():
+#             league = check_leagues.first()
+#             tournament_obj = tournament.first()
+#             get_user = check_user.first()
+
+#             team1_point_list = team1_point.split(",")
+#             team2_point_list = team2_point.split(",")
+#             set_number_list = set_number.split(",")
+#             t_sets = tournament_obj.set_number
+#             org_list = list(league.add_organizer.all().values_list("id", flat=True))
+#             # print(get_user.id)
+#             # print(tournament_obj.team1.created_by == get_user)
+#             # print(tournament_obj.team2.created_by == get_user)
+#             # print(get_user.id)
+#             team1_p_list = list(Player.objects.filter(team__id = tournament_obj.team1.id).values_list("player_id", flat=True))
+#             team2_p_list = list(Player.objects.filter(team__id = tournament_obj.team2.id).values_list("player_id", flat=True))
+#             if(tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (league.created_by == get_user) or (get_user.id in org_list) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list):
+#                 if int(t_sets) == len(team1_point_list):
+#                     te1_win=[]
+#                     te2_win=[]
+#                     for up_ in range(len(team1_point_list)):
+#                         set_num = up_ + 1
+#                         team1_point = team1_point_list[up_]
+#                         team2_point = team2_point_list[up_]
+#                         if int(team1_point) >= int(team2_point):
+#                             winner = tournament_obj.team1
+#                             te1_win.append(True)
+#                             te2_win.append(False)
+#                         else:
+#                             te1_win.append(False)
+#                             te2_win.append(True)
+#                             winner = tournament_obj.team2
+#                         check_score = TournamentSetsResult.objects.filter(tournament=tournament_obj, set_number=set_num)
+#                         check_status_score = False
+#                         if ((tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list)) and (league.created_by != get_user) and (get_user.id not in org_list):
+#                             if check_score.exists():
+#                                 if check_score.first().is_completed:
+#                                     data["status"], data["message"] = status.HTTP_200_OK, "The Score is already updated"
+#                                     return Response(data)
+#                                 else:
+#                                     check_score.update(team1_point=team1_point, team2_point=team2_point)
+#                             else:
+#                                 TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point)
+#                         elif (league.created_by == get_user) or (get_user.id in org_list):
+#                             if check_score.exists():
+#                                 check_score.update(team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
+#                             else:
+#                                 TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
+#                             check_status_score = True
+#                     # calculate match win status
+#                     te1_wins = sum(1 for result in te1_win if result)
+#                     te2_wins = sum(1 for result in te2_win if result)
+#                     is_drow = False
+#                     # print(te1_wins,te2_wins,is_drow)
+#                     if te1_wins > te2_wins:
+#                         winner = tournament_obj.team1
+#                         looser = tournament_obj.team2
+#                     elif te2_wins > te1_wins:
+#                         winner = tournament_obj.team2
+#                         looser = tournament_obj.team1
+#                     else:
+#                         winner = None
+#                         looser = None
+#                         is_drow = True
+#                     tournament_obj.winner_team = winner
+#                     tournament_obj.loser_team = looser
+#                     if is_drow is True:
+#                         tournament_obj.is_drow = True
+#                         tournament_obj.winner_team_score = 1
+#                         tournament_obj.loser_team_score = 1
+#                     else:
+#                         tournament_obj.winner_team_score = 3
+#                         tournament_obj.loser_team_score = 0
+
+#                     #for notification
+#                     title = "Match score update"
+#                     if winner is not None and looser is not None:
+#                         if check_status_score is False:
+                            
+#                             message = f"Your Match {tournament_obj.match_number} scores are all updated, awaiting approval"
+#                             message2 = f"Your Match {tournament_obj.match_number} scores are all updated, awaiting approval"
+#                         if check_status_score is True:
+#                             message = f"Wow, you have won the match {tournament_obj.match_number}, the scores are approved"
+#                             message2 = f"Sorry, you have lost the match {tournament_obj.match_number}, the scores are approved"
+                        
+#                         winner_player = list(Player.objects.filter(team__id=winner.id).values_list("player_id", flat=True))
+                        
+#                         if len(winner_player) > 0:
+#                             winner_player.append(tournament_obj.winner_team.created_by.id)
+#                             for user_id in winner_player:                                
+#                                 notify_edited_player(user_id, title, message)
+
+#                         looser_player = list(Player.objects.filter(team__id=looser.id).values_list("player_id", flat=True))
+                        
+#                         if len(looser_player) > 0:
+#                             looser_player.append(tournament_obj.loser_team.created_by.id)
+#                             for user_id in looser_player:                               
+#                                 notify_edited_player(user_id, title, message2)
+#                     else:
+#                         if check_status_score is False:
+#                             message = f"Your match {tournament_obj.match_number} scores are all updated, awaiting approval"
+#                             # message2 = f"Your match number {tournament_obj.match_number} score is updated, after checking the organizer status will updated"
+#                         if check_status_score is True:
+#                             message = f"The match {tournament_obj.match_number} was drawn, the scores are approved"
+
+#                         team_1_ins = tournament_obj.team1
+#                         team_2_ins = tournament_obj.team2
+#                         team_one_player_list = list(Player.objects.filter(team__id = team_1_ins.id).values_list("player_id", flat=True))
+#                         team_two_player_list = list(Player.objects.filter(team__id = team_2_ins.id).values_list("player_id", flat=True))
+                        
+#                         team_one_player_list.append(tournament_obj.team1.created_by.id)
+#                         for user_id in team_one_player_list:                            
+#                             notify_edited_player(user_id, title, message) 
+
+#                         team_two_player_list.append(tournament_obj.team2.created_by.id)
+#                         for user_id in team_two_player_list:
+#                             notify_edited_player(user_id, title, message) 
+
+#                     org_list.append(league.created_by.id)
+#                     if check_status_score is False:
+#                         title = "Matchs score update" 
+#                         message = f"Your Match {tournament_obj.match_number} scores are all updated, please give the approval"
+#                         for us in  org_list:
+#                             user_id = int(us)
+#                             notify_edited_player(user_id, title, message)
+#                     # notification end
+
+#                     tournament_obj.is_completed = check_status_score
+#                     tournament_obj.save()
+#                 else:
+#                     for up_ in range(len(team1_point_list)):
+#                         set_num = up_ + 1
+#                         team1_point = team1_point_list[up_]
+#                         team2_point = team2_point_list[up_]
+#                         if int(team1_point) >= int(team2_point):
+#                             winner = tournament_obj.team1
+#                         else:
+#                             winner = tournament_obj.team2
+#                         check_score = TournamentSetsResult.objects.filter(tournament=tournament_obj, set_number=set_num)
+#                         check_status_score = False
+#                         if ((tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list)) and (league.created_by != get_user) and (get_user.id not in org_list):
+#                             if check_score.exists():
+#                                 if check_score.first().is_completed:
+#                                     data["status"], data["message"] = status.HTTP_200_OK, "The Score is already updated"
+#                                     return Response(data)
+#                                 else:
+#                                     check_score.update(team1_point=team1_point, team2_point=team2_point)
+#                             else:
+#                                 TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point)
+#                         elif (league.created_by == get_user) or (get_user.id in org_list):
+#                             if check_score.exists():
+#                                 check_score.update(team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
+#                             else:
+#                                 TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
+#                             check_status_score = True
+                            
+#                     #for notification
+#                     if check_status_score is False:
+#                         message = f"Scores in Match {tournament_obj.match_number} are placed. Subjected to approval."
+#                     elif check_status_score is True:
+#                         message = f"Scores in Match {tournament_obj.match_number} are placed"
+#                     title = "Match score update"
+#                     team_1_ins = tournament_obj.team1
+#                     team_2_ins = tournament_obj.team2
+
+#                     team_one_player_list = list(Player.objects.filter(team__id = team_1_ins.id).values_list("player_id", flat=True))
+#                     team_two_player_list = list(Player.objects.filter(team__id = team_2_ins.id).values_list("player_id", flat=True))
+
+#                     team_one_player_list.append(team_1_ins.created_by.id)
+#                     for user_id in team_one_player_list:
+#                         notify_edited_player(user_id, title, message) 
+
+#                     team_two_player_list.append(team_2_ins.created_by.id)
+#                     for user_id in team_two_player_list:
+#                         message = f"Scores in Match {tournament_obj.match_number} are placed. Subjected to approval."
+#                         notify_edited_player(user_id, title, message) 
+                    
+#                     org_list.append(league.created_by.id)
+#                     if check_status_score is False:
+#                         title = "Matchs score update" 
+#                         message = f"Your Match {tournament_obj.match_number} scores are all updated, please give the approval"
+#                         for us in  org_list:
+#                             user_id = int(us)
+#                             notify_edited_player(user_id, title, message)
+                    
+#                     # notification end
+#                 data["status"], data["message"] = status.HTTP_200_OK, "Your set's score is Updated"
+#             else:
+#                 data["status"], data["message"] = status.HTTP_200_OK, "You can't update the score"
+#         else:
+#             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User or Tournament not found."
+#     except Exception as e:
+#         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, str(e)
+#     return Response(data)
+
 @api_view(('POST',))
 def set_tournamens_result(request):
     data = {'status': '', 'data': [], 'message': ''}
@@ -3521,15 +3938,24 @@ def set_tournamens_result(request):
             team2_point_list = team2_point.split(",")
             set_number_list = set_number.split(",")
             t_sets = tournament_obj.set_number
-            org_list = list(league.add_organizer.all().values_list("id", flat=True))
-            # print(get_user.id)
-            # print(tournament_obj.team1.created_by == get_user)
-            # print(tournament_obj.team2.created_by == get_user)
-            # print(get_user.id)
+
+            main_org = list(User.objects.filter(id=league.created_by.id).values_list('id', flat=True))
+            sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))
+            org_list = main_org +  sub_org_list
             team1_p_list = list(Player.objects.filter(team__id = tournament_obj.team1.id).values_list("player_id", flat=True))
             team2_p_list = list(Player.objects.filter(team__id = tournament_obj.team2.id).values_list("player_id", flat=True))
-            if(tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (league.created_by == get_user) or (get_user.id in org_list) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list):
-                if int(t_sets) == len(team1_point_list):
+
+            check_reported_score = TournamentScoreReport.objects.filter(tournament=tournament_obj, status="Pending")
+
+            if check_reported_score.exists():
+                if get_user.id in org_list:
+                    check_reported_score.update(status="Resolved")
+                    check_approve = TournamentScoreApproval.objects.filter(tournament=tournament_obj)
+                    if check_approve.exists():
+                        check_approve.update(team1_approval=True, team2_approval=True, organizer_approval=True)
+                    else:
+                        TournamentScoreApproval.objects.create(tournament=tournament_obj, team1_approval=True, team2_approval=True, organizer_approval=True)
+
                     te1_win=[]
                     te2_win=[]
                     for up_ in range(len(team1_point_list)):
@@ -3545,22 +3971,8 @@ def set_tournamens_result(request):
                             te2_win.append(True)
                             winner = tournament_obj.team2
                         check_score = TournamentSetsResult.objects.filter(tournament=tournament_obj, set_number=set_num)
-                        check_status_score = False
-                        if ((tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list)) and (league.created_by != get_user) and (get_user.id not in org_list):
-                            if check_score.exists():
-                                if check_score.first().is_completed:
-                                    data["status"], data["message"] = status.HTTP_200_OK, "The Score is already updated"
-                                    return Response(data)
-                                else:
-                                    check_score.update(team1_point=team1_point, team2_point=team2_point)
-                            else:
-                                TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point)
-                        elif (league.created_by == get_user) or (get_user.id in org_list):
-                            if check_score.exists():
-                                check_score.update(team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
-                            else:
-                                TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
-                            check_status_score = True
+                        check_score.update(team1_point=team1_point, team2_point=team2_point)
+
                     # calculate match win status
                     te1_wins = sum(1 for result in te1_win if result)
                     te2_wins = sum(1 for result in te2_win if result)
@@ -3586,16 +3998,14 @@ def set_tournamens_result(request):
                         tournament_obj.winner_team_score = 3
                         tournament_obj.loser_team_score = 0
 
+                    tournament_obj.is_completed = True
+                    tournament_obj.save()
+
                     #for notification
                     title = "Match score update"
-                    if winner is not None and looser is not None:
-                        if check_status_score is False:
-                            
-                            message = f"Your Match {tournament_obj.match_number} scores are all updated, awaiting approval"
-                            message2 = f"Your Match {tournament_obj.match_number} scores are all updated, awaiting approval"
-                        if check_status_score is True:
-                            message = f"Wow, you have won the match {tournament_obj.match_number}, the scores are approved"
-                            message2 = f"Sorry, you have lost the match {tournament_obj.match_number}, the scores are approved"
+                    if winner is not None and looser is not None:                            
+                        message = f"Wow, you have won the match {tournament_obj.match_number}, the report has been resolved."
+                        message2 = f"Sorry, you have lost the match {tournament_obj.match_number}, the report has been resolved."
                         
                         winner_player = list(Player.objects.filter(team__id=winner.id).values_list("player_id", flat=True))
                         
@@ -3603,104 +4013,150 @@ def set_tournamens_result(request):
                             winner_player.append(tournament_obj.winner_team.created_by.id)
                             for user_id in winner_player:                                
                                 notify_edited_player(user_id, title, message)
-
-                        looser_player = list(Player.objects.filter(team__id=looser.id).values_list("player_id", flat=True))
-                        
+                                
+                        looser_player = list(Player.objects.filter(team__id=looser.id).values_list("player_id", flat=True))                      
                         if len(looser_player) > 0:
                             looser_player.append(tournament_obj.loser_team.created_by.id)
-                            for user_id in looser_player:                               
+                            for user_id in looser_player:                                
                                 notify_edited_player(user_id, title, message2)
-                    else:
-                        if check_status_score is False:
-                            message = f"Your match {tournament_obj.match_number} scores are all updated, awaiting approval"
-                            # message2 = f"Your match number {tournament_obj.match_number} score is updated, after checking the organizer status will updated"
-                        if check_status_score is True:
-                            message = f"The match {tournament_obj.match_number} was drawn, the scores are approved"
 
+                        org_message = f"{tournament_obj.winner_team.name} has won the match {tournament_obj.match_number} of league {tournament_obj.leagues.name}, the report has been resolved."
+                        for user_id in org_list:
+                            notify_edited_player(user_id, title, org_message)
+                    else:                            
+                        message = f"The match {tournament_obj.match_number} was drawn, the report has been resolved."
                         team_1_ins = tournament_obj.team1
                         team_2_ins = tournament_obj.team2
-                        team_one_player_list = list(Player.objects.filter(team__id = team_1_ins.id).values_list("player_id", flat=True))
-                        team_two_player_list = list(Player.objects.filter(team__id = team_2_ins.id).values_list("player_id", flat=True))
+                        team_one_player_list = Player.objects.filter(team__id = team_1_ins.id)
+                        team_two_player_list = Player.objects.filter(team__id = team_2_ins.id)
+
+                        for pl1 in team_one_player_list:
+                            user_id = pl1.player.id
+                            notify_edited_player(user_id, title, message) 
+                        for pl2 in team_two_player_list:
+                            user_id = pl2.player.id
+                            notify_edited_player(user_id, title, message)
                         
-                        team_one_player_list.append(tournament_obj.team1.created_by.id)
-                        for user_id in team_one_player_list:                            
-                            notify_edited_player(user_id, title, message) 
+                        org_message = f"The match {tournament_obj.match_number} of league {tournament_obj.leagues.name} was drawn, the report has been resolved."
+                        for user_id in org_list:
+                            notify_edited_player(user_id, title, org_message)
 
-                        team_two_player_list.append(tournament_obj.team2.created_by.id)
-                        for user_id in team_two_player_list:
-                            notify_edited_player(user_id, title, message) 
-
-                    org_list.append(league.created_by.id)
-                    if check_status_score is False:
-                        title = "Matchs score update" 
-                        message = f"Your Match {tournament_obj.match_number} scores are all updated, please give the approval"
-                        for us in  org_list:
-                            user_id = int(us)
-                            notify_edited_player(user_id, title, message)
-                    # notification end
-
-                    tournament_obj.is_completed = check_status_score
-                    tournament_obj.save()
+                    data["status"], data["message"] = status.HTTP_200_OK, "Your set's score is Updated"
                 else:
-                    for up_ in range(len(team1_point_list)):
-                        set_num = up_ + 1
-                        team1_point = team1_point_list[up_]
-                        team2_point = team2_point_list[up_]
-                        if int(team1_point) >= int(team2_point):
-                            winner = tournament_obj.team1
-                        else:
-                            winner = tournament_obj.team2
-                        check_score = TournamentSetsResult.objects.filter(tournament=tournament_obj, set_number=set_num)
-                        check_status_score = False
-                        if ((tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list)) and (league.created_by != get_user) and (get_user.id not in org_list):
-                            if check_score.exists():
-                                if check_score.first().is_completed:
-                                    data["status"], data["message"] = status.HTTP_200_OK, "The Score is already updated"
-                                    return Response(data)
-                                else:
-                                    check_score.update(team1_point=team1_point, team2_point=team2_point)
-                            else:
-                                TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point)
-                        elif (league.created_by == get_user) or (get_user.id in org_list):
-                            if check_score.exists():
-                                check_score.update(team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
-                            else:
-                                TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point,is_completed=True,win_team=winner)
-                            check_status_score = True
-                            
-                    #for notification
-                    if check_status_score is False:
-                        message = f"Scores in Match {tournament_obj.match_number} are placed. Subjected to approval."
-                    elif check_status_score is True:
-                        message = f"Scores in Match {tournament_obj.match_number} are placed"
-                    title = "Match score update"
-                    team_1_ins = tournament_obj.team1
-                    team_2_ins = tournament_obj.team2
-
-                    team_one_player_list = list(Player.objects.filter(team__id = team_1_ins.id).values_list("player_id", flat=True))
-                    team_two_player_list = list(Player.objects.filter(team__id = team_2_ins.id).values_list("player_id", flat=True))
-
-                    team_one_player_list.append(team_1_ins.created_by.id)
-                    for user_id in team_one_player_list:
-                        notify_edited_player(user_id, title, message) 
-
-                    team_two_player_list.append(team_2_ins.created_by.id)
-                    for user_id in team_two_player_list:
-                        message = f"Scores in Match {tournament_obj.match_number} are placed. Subjected to approval."
-                        notify_edited_player(user_id, title, message) 
-                    
-                    org_list.append(league.created_by.id)
-                    if check_status_score is False:
-                        title = "Matchs score update" 
-                        message = f"Your Match {tournament_obj.match_number} scores are all updated, please give the approval"
-                        for us in  org_list:
-                            user_id = int(us)
-                            notify_edited_player(user_id, title, message)
-                    
-                    # notification end
-                data["status"], data["message"] = status.HTTP_200_OK, "Your set's score is Updated"
+                    data["status"], data["message"] = status.HTTP_200_OK, "You can't update the score"
             else:
-                data["status"], data["message"] = status.HTTP_200_OK, "You can't update the score"
+                if (tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list):
+                    if int(t_sets) == len(team1_point_list):
+                        te1_win=[]
+                        te2_win=[]
+                        for up_ in range(len(team1_point_list)):
+                            set_num = up_ + 1
+                            team1_point = team1_point_list[up_]
+                            team2_point = team2_point_list[up_]
+                            if int(team1_point) >= int(team2_point):
+                                winner = tournament_obj.team1
+                                te1_win.append(True)
+                                te2_win.append(False)
+                            else:
+                                te1_win.append(False)
+                                te2_win.append(True)
+                                winner = tournament_obj.team2
+                            check_score = TournamentSetsResult.objects.filter(tournament=tournament_obj, set_number=set_num)
+                            
+                            if ((tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list)):
+                                if check_score.exists():
+                                    if check_score.first().is_completed:
+                                        data["status"], data["message"] = status.HTTP_200_OK, "The Score is already updated"
+                                        return Response(data)
+                                    else:
+                                        check_score.update(team1_point=team1_point, team2_point=team2_point)
+                                else:
+                                    TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point)
+
+                                # Send notification to opposite team for approval.    
+                                message = f"Your Match {tournament_obj.match_number} scores are all updated. You can approve or report them."
+                                if ((tournament_obj.team1.created_by == get_user) or (get_user.id in team1_p_list)):
+                                    notify_users = team2_p_list
+                                    notify_users.append(tournament_obj.team2.created_by.id)
+                                else:
+                                    notify_users = team1_p_list
+                                    notify_users.append(tournament_obj.team1.created_by.id)
+                                
+                                title = "Match score update"
+                                for user_id in notify_users:
+                                    notify_edited_player(user_id, title, message)
+                                
+                                org_message = f"The scores are all updated for match {tournament_obj.match_number} of league {tournament_obj.leagues.name}"
+                                for user_id in org_list:
+                                    notify_edited_player(user_id, title, org_message)
+
+                        # calculate match win status
+                        te1_wins = sum(1 for result in te1_win if result)
+                        te2_wins = sum(1 for result in te2_win if result)
+                        is_drow = False
+                        # print(te1_wins,te2_wins,is_drow)
+                        if te1_wins > te2_wins:
+                            winner = tournament_obj.team1
+                            looser = tournament_obj.team2
+                        elif te2_wins > te1_wins:
+                            winner = tournament_obj.team2
+                            looser = tournament_obj.team1
+                        else:
+                            winner = None
+                            looser = None
+                            is_drow = True
+                        tournament_obj.winner_team = winner
+                        tournament_obj.loser_team = looser
+                        if is_drow is True:
+                            tournament_obj.is_drow = True
+                            tournament_obj.winner_team_score = 1
+                            tournament_obj.loser_team_score = 1
+                        else:
+                            tournament_obj.winner_team_score = 3
+                            tournament_obj.loser_team_score = 0                  
+
+                        tournament_obj.save()
+                    else:
+                        for up_ in range(len(team1_point_list)):
+                            set_num = up_ + 1
+                            team1_point = team1_point_list[up_]
+                            team2_point = team2_point_list[up_]
+                            if int(team1_point) >= int(team2_point):
+                                winner = tournament_obj.team1
+                            else:
+                                winner = tournament_obj.team2
+                            check_score = TournamentSetsResult.objects.filter(tournament=tournament_obj, set_number=set_num)
+                            
+                            if ((tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list)):
+                                if check_score.exists():
+                                    if check_score.first().is_completed:
+                                        data["status"], data["message"] = status.HTTP_200_OK, "The Score is already updated"
+                                        return Response(data)
+                                    else:
+                                        check_score.update(team1_point=team1_point, team2_point=team2_point)
+                                else:
+                                    TournamentSetsResult.objects.create(tournament=tournament_obj, set_number=set_num, team1_point=team1_point, team2_point=team2_point)
+                                
+                                # Send notification.    
+                                message = f"Scores of match {tournament_obj.match_number} are placed."
+                                if ((tournament_obj.team1.created_by == get_user) or (get_user.id in team1_p_list)):
+                                    notify_users = team2_p_list
+                                    notify_users.append(tournament_obj.team2.created_by.id)
+                                else:
+                                    notify_users = team1_p_list
+                                    notify_users.append(tournament_obj.team1.created_by.id)
+                                
+                                title = "Match score update"
+                                for user_id in notify_users:
+                                    notify_edited_player(user_id, title, message) 
+
+                                org_message = f"Scores of match {tournament_obj.match_number} of league {tournament_obj.leagues.name} are placed."
+                                for user_id in org_list:
+                                    notify_edited_player(user_id, title, org_message)                       
+                        
+                    data["status"], data["message"] = status.HTTP_200_OK, "Your set's score is Updated"
+                else:
+                    data["status"], data["message"] = status.HTTP_200_OK, "You can't update the score"
         else:
             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User or Tournament not found."
     except Exception as e:
@@ -3730,6 +4186,9 @@ def approve_set_tournament_result(request):
 
             team1_p_list = list(Player.objects.filter(team__id = tournament_obj.team1.id).values_list("player_id", flat=True))
             team2_p_list = list(Player.objects.filter(team__id = tournament_obj.team2.id).values_list("player_id", flat=True))
+            main_org = list(User.objects.filter(id=league.created_by.id).values_list('id', flat=True))
+            sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))
+            org_list = main_org +  sub_org_list
 
             if (tournament_obj.team1.created_by == get_user) or (tournament_obj.team2.created_by == get_user) or (get_user.id in team1_p_list) or (get_user.id in team2_p_list):
                 check_approval = TournamentScoreApproval.objects.filter(tournament=tournament_obj)
@@ -3738,10 +4197,21 @@ def approve_set_tournament_result(request):
                         check_approval.update(team1_approval = True)                        
                     else:
                         check_approval.update(team2_approval = True)
-                    
+
+                else:
+                    if (tournament_obj.team1.created_by == get_user) or (get_user.id in team1_p_list):
+                        TournamentScoreApproval.objects.create(tournament=tournament_obj, team1_approval = True)                        
+                    else:
+                        TournamentScoreApproval.objects.create(tournament=tournament_obj, team2_approval = True)
+                data["status"], data["message"] = status.HTTP_200_OK, f"The scores of the match {tournament_obj.match_number} has been successfully approved by you." 
+
+            elif get_user.id in org_list:
+                check_approval = TournamentScoreApproval.objects.filter(tournament=tournament_obj, team1_approval=True, team2_approval=True)  
+                if check_approval.exists():
+                    check_approval.update(organizer_approval=True)  
+
                     tournament_obj.is_completed = True
                     tournament_obj.save()
-
                     #for notification                  
 
                     title = "Match score update"
@@ -3753,32 +4223,35 @@ def approve_set_tournament_result(request):
                         
                         if len(winner_player) > 0:
                             winner_player.append(tournament_obj.winner_team.created_by.id)
-                            for user_id in winner_player:
+                            for user_id in winner_player:                            
                                 notify_edited_player(user_id, title, message)
                                 
                         looser_player = list(Player.objects.filter(team__id=tournament_obj.loser_team.id).values_list("player_id", flat=True))
                         
                         if len(looser_player) > 0:
                             looser_player.append(tournament_obj.loser_team.created_by.id)
-                            for user_id in looser_player:
+                            for user_id in looser_player:                                
                                 notify_edited_player(user_id, title, message2)
+
+                        org_message = f"{tournament_obj.winner_team.name} has won the match {tournament_obj.match_number} of league {tournament_obj.leagues.name}"
+                        for user_id in org_list:
+                            notify_edited_player(user_id, title, org_message)
                     else:                            
                         message = f"The match {tournament_obj.match_number} was drawn, the scores are approved"                        
-                        team_one_player_list = list(Player.objects.filter(team__id = tournament_obj.team1.id).values_list("player_list", flat=True))
-                        team_two_player_list = list(Player.objects.filter(team__id = tournament_obj.team2.id).values_list("player_list", flat=True))
+                        team_one_player_list = list(Player.objects.filter(team__id = tournament_obj.team1.id).values_list("player_id", flat=True))
+                        team_two_player_list = list(Player.objects.filter(team__id = tournament_obj.team2.id).values_list("player_id", flat=True))
 
                         team_one_player_list.append(tournament_obj.team1.created_by.id)
                         for user_id in team_one_player_list:                            
-                            notify_edited_player(user_id, title, message)
+                            notify_edited_player(user_id, title, message) 
 
-                        team_two_player_list.append(tournament_obj.team2.created_by.id)   
+                        team_two_player_list.append(tournament_obj.team2.created_by.id)
                         for user_id in team_two_player_list:
                             notify_edited_player(user_id, title, message) 
-                else:
-                    if (tournament_obj.team1.created_by == get_user) or (get_user.id in team1_p_list):
-                        TournamentScoreApproval.objects.create(tournament=tournament_obj, team1_approval = True)                        
-                    else:
-                        TournamentScoreApproval.objects.create(tournament=tournament_obj, team1_approval = True)
+                        
+                        org_message = f"The match {tournament_obj.match_number} of league {tournament_obj.leagues.name} was drawn."
+                        for user_id in org_list:
+                            notify_edited_player(user_id, title, org_message)
 
                 data["status"], data["message"] = status.HTTP_200_OK, f"The scores of the match {tournament_obj.match_number} has been successfully approved."     
             else:
@@ -3819,10 +4292,19 @@ def report_set_tournament_result(request):
                 TournamentScoreReport.objects.create(tournament=tournament_obj, text=report_text, created_by=get_user,status="Pending")
 
                 #Notification for organizer
-                org_list = list(league.add_organizer.all().values_list("id", flat=True))
-                title = "Match score update"
+                main_org = list(User.objects.filter(id=league.created_by.id).values_list('id', flat=True))
+                sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))
+                org_list = main_org +  sub_org_list
+
+                title = "Match score report"
                 message = f'{get_user.first_name} {get_user.last_name} has reported the scores of match {tournament_obj.match_number} of league {tournament_obj.leagues.name}. Please resolve this and update the score.'
                 for user_id in org_list:
+                    notify_edited_player(user_id, title, message)
+
+                player_list = team1_p_list + team2_p_list + [tournament_obj.team2.created_by.id, tournament_obj.team1.created_by.id]
+                title = "Match score report"
+                message = f'{get_user.first_name} {get_user.last_name} has reported the scores of match {tournament_obj.match_number} of league {tournament_obj.leagues.name}.'
+                for user_id in player_list:
                     notify_edited_player(user_id, title, message)
 
                 data["status"], data["message"] = status.HTTP_200_OK, f"You have successfully reported the scores of match {tournament_obj.match_number}"
@@ -4888,25 +5370,254 @@ def send_notification_organizer_to_player(request):
 #     #     data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
 #         return Response(data)
 
+# @api_view(('GET',))
+# def view_leagues(request):
+#     # try:
+#         data = {
+#              'status':'',
+#              'create_group_status':False,
+#              'max_team': None,
+#              'is_register': False,
+#              'total_register_team':None,
+#              'is_organizer': False,
+#              'sub_organizer_data':[],
+#              'organizer_name_data':[],
+#              'invited_code':None,
+#              'winner_team': 'Not Declared',
+#              'data':[],
+#              'tournament_detais':[],             
+#              'message':'',
+#              'match':[]
+#              }
+#         user_uuid = request.GET.get('user_uuid')
+#         user_secret_key = request.GET.get('user_secret_key')
+#         league_uuid = request.GET.get('league_uuid')
+#         league_secret_key = request.GET.get('league_secret_key')
+#         protocol = 'https' if request.is_secure() else 'http'
+#         host = request.get_host()
+#         media_base_url = f"{protocol}://{host}{settings.MEDIA_URL}"
+#         '''
+#         registration_open, future, past
+#         '''
+#         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+#         check_leagues = Leagues.objects.filter(uuid=league_uuid,secret_key=league_secret_key)
+        
+#         if check_user.exists() and check_leagues.exists():
+#             leagues = check_leagues.values('uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
+#                                'registration_start_date','registration_end_date','team_type__name','team_person__name',
+#                                "street","city","state","postal_code","country","complete_address","latitude","longitude","play_type","registration_fee","description","image","others_fees", "league_type")
+#             league = check_leagues.first()
+#             get_user = check_user.first()
+
+#             today_date = datetime.today().date()
+#             if league.registration_end_date not in [None, "null", "", "None"]:
+#                 if league.registration_end_date.date() >= today_date and league.league_type != "Invites only" and league.max_number_team > league.registered_team.count() and not league.is_complete:
+#                     data["is_register"] = True
+            
+#             organizers = list(User.objects.filter(id=league.created_by.id).values('id','uuid','secret_key','username','first_name','last_name','email','phone','gender','user_birthday','role','rank','image','street','city','state','country','postal_code'))
+#             sub_organizer_data = list(league.add_organizer.all().values('id','uuid','secret_key','username','first_name','last_name','email','phone','gender','user_birthday','role','rank','image','street','city','state','country','postal_code'))
+            
+#             organizer_list = organizers + sub_organizer_data
+#             for nu in organizer_list:
+#                 nu["phone"] = str(nu["phone"])
+#             data['sub_organizer_data'] = organizer_list
+            
+#             organizer_list = []
+#             for org in data['sub_organizer_data']:
+#                 first_name = org["first_name"]
+#                 last_name = org["last_name"]
+#                 if not first_name:
+#                     first_name = " "
+#                 if not last_name:
+#                     last_name = " "
+#                 name = f"{first_name} {last_name}"
+#                 organizer_list.append(name)
+#             data['organizer_name_data'] = organizer_list
+
+#             sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))  # Corrected "falt" to "flat"
+#             if get_user == league.created_by or get_user.id in sub_org_list:
+#                 data['is_organizer'] =  True
+#                 data['invited_code'] =  league.invited_code
+            
+#             data['max_team'] =  league.max_number_team
+#             data['total_register_team'] =  league.registered_team.all().count()
+#             data['tournament_detais'] = LeaguesPlayType.objects.filter(league_for = check_leagues.first()).values()
+#             data['data'] = leagues
+
+#             ######## tournament matches details ########
+#             #working
+#             tournament_details = Tournament.objects.filter(leagues=check_leagues.first()).order_by("match_number").values("id","match_number","uuid","secret_key","leagues__name"
+#                                                                                                                           ,"team1_id", "team2_id", "team1__team_image", "team2__team_image", 
+#                                                                                                                           "team1__name", "team2__name", "winner_team_id", "winner_team__name", 
+#                                                                                                                           "playing_date_time","match_type","group__court","is_completed"
+#                                                                                                                           ,"elimination_round","court_sn","set_number","court_num","points","is_drow")
+
+#             for sc in tournament_details:
+#                 if sc["group__court"] is None:
+#                     sc["group__court"] = sc["court_sn"]
+
+#                 team_1_player = list(Player.objects.filter(team__id=sc["team1_id"]).values_list("player_id", flat=True))
+#                 team_2_player = list(Player.objects.filter(team__id=sc["team2_id"]).values_list("player_id", flat=True))
+
+#                 team_1_created_by = Team.objects.filter(id=sc["team1_id"]).first().created_by
+#                 team_2_created_by = Team.objects.filter(id=sc["team2_id"]).first().created_by
+
+#                 if get_user == league.created_by or get_user.id in sub_org_list or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id or get_user.id in team_1_player or get_user.id in team_2_player:
+#                     sc["is_edit"] = True
+#                 else:
+#                     sc["is_edit"] = False
+
+#                 if sc["team1__team_image"] != "":
+#                     img_str = sc["team1__team_image"]
+#                     sc["team1__team_image"] = f"{media_base_url}{img_str}"
+#                 if sc["team2__team_image"] != "":
+#                     img_str = sc["team2__team_image"]
+#                     sc["team2__team_image"] = f"{media_base_url}{img_str}"
+#                 #"set_number","court_num","points"
+#                 set_list_team1 = []
+#                 set_list_team2 = []
+#                 score_list_team1 = []
+#                 score_list_team2 = []
+#                 win_status_team1 = []
+#                 win_status_team2 = []
+#                 is_completed_match = sc["is_completed"]
+#                 is_win_match_team1 = False
+#                 is_win_match_team2 = False
+#                 team1_name = sc["team1__name"]
+#                 team2_name = sc["team2__name"]
+#                 if sc["team1_id"] == sc["winner_team_id"] and sc["winner_team_id"] is not None:
+#                     is_win_match_team1 = True
+#                     is_win_match_team2 = False
+#                 elif sc["team2_id"] == sc["winner_team_id"] and sc["winner_team_id"] is not None:
+#                     is_win_match_team2 = True
+#                     is_win_match_team1 = False
+#                 # else:
+#                 #     is_win_match_team2 = False
+#                 #     is_win_match_team1 = False
+#                 for s in range(sc["set_number"]):
+#                     index = s+1
+#                     set_str = f"s{index}"
+#                     set_list_team1.append(set_str)
+#                     set_list_team2.append(set_str)
+#                     score_details_for_set = TournamentSetsResult.objects.filter(tournament_id=sc["id"],set_number=index).values()
+#                     if len(score_details_for_set)!=0:
+#                         team_1_score = score_details_for_set[0]["team1_point"]
+#                         team_2_score = score_details_for_set[0]["team2_point"]
+#                     else:
+#                         team_1_score = None
+#                         team_2_score = None
+#                     score_list_team1.append(team_1_score)
+#                     score_list_team2.append(team_2_score)
+#                     if team_1_score is not None and team_2_score is not None:
+#                         if team_1_score >= team_2_score:
+#                             win_status_team1.append(True)
+#                             win_status_team2.append(False)
+#                         else:
+#                             win_status_team1.append(False)
+#                             win_status_team2.append(True)
+#                     else:
+#                         win_status_team1.append(False)
+#                         win_status_team2.append(False)
+#                 score = [
+#                     {
+#                      "name": team1_name,"set": set_list_team2,
+#                      "score": score_list_team1,"win_status": win_status_team1,
+#                      "is_win": is_win_match_team1,"is_completed": is_completed_match
+#                      },
+#                     {
+#                     "name": team2_name,"set": set_list_team2,
+#                     "score": score_list_team2,"win_status": win_status_team1,
+#                     "is_win": is_win_match_team2,"is_completed": is_completed_match
+#                     }
+#                     ]
+#                 sc["score"] = score
+
+#             data['match'] = tournament_details
+#             ######## tournament matches details ########
+            
+#             ########### declear winner team and update ##########
+#             play_type_check_win = league.play_type
+#             if play_type_check_win == "Group Stage" or play_type_check_win == "Single Elimination":
+#                 check_final = Tournament.objects.filter(leagues=check_leagues.first(),match_type="Final",is_completed=True)
+#                 if check_final.exists():
+#                     final_match = check_final.first()
+#                     winner_team = final_match.winner_team
+#                     winner_team_name = final_match.winner_team.name
+#                     league.winner_team = winner_team
+#                     league.is_complete = True
+#                     league.save()
+#                     data["winner_team"] = winner_team_name
+#                 else:
+#                     pass
+
+#             else:
+#                 check_final = Tournament.objects.filter(leagues=check_leagues.first(),match_type="Individual Match Play",is_completed=True)
+#                 if check_final.exists():
+#                     final_match = check_final.first()
+#                     if not final_match.is_drow:
+#                         winner_team = final_match.winner_team
+#                         winner_team_name = final_match.winner_team.name
+#                         league.winner_team = winner_team
+#                         league.is_complete = True
+#                         league.save()
+#                         data["winner_team"] = winner_team_name
+#                     else:
+#                         winner_team1 = final_match.team1
+#                         winner_team2 = final_match.team2
+#                         # league.winner_team = None
+#                         league.is_complete = True
+#                         league.save()
+#                         data["winner_team"] = f"{winner_team1.name}, {winner_team2.name}"
+#                 else:
+#                     pass
+#             ########### declear winner team and update ##########
+
+#             ######### Tornament all teams details ############
+#             ################### Change 1 To Remove###########
+#             all_team = check_leagues.first().registered_team.all()
+#             teams = []
+#             for t in all_team:
+#                 team_d = Team.objects.filter(id=t.id).values()
+#                 teams.append(team_d[0])
+#             for im in teams:
+#                 if im["team_image"] != "":
+#                     img_str = im["team_image"]
+#                     im["team_image"] = f"{media_base_url}{img_str}"
+            
+#             data['teams'] = teams
+#             ######### Tornament all teams details ############
+            
+            
+#             data["create_group_status"] = get_user.is_organizer and check_leagues.first().created_by == get_user
+#             data["status"], data["message"] = status.HTTP_200_OK, "League data"
+#         else:
+#             data["status"], data['data'], data["message"] = status.HTTP_404_NOT_FOUND, [],  "User or League not found."
+#     # except Exception as e :
+#     #     data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+#         return Response(data)
+
 @api_view(('GET',))
 def view_leagues(request):
-    # try:
-        data = {
-             'status':'',
-             'create_group_status':False,
-             'max_team': None,
-             'is_register': False,
-             'total_register_team':None,
-             'is_organizer': False,
-             'sub_organizer_data':[],
-             'organizer_name_data':[],
-             'invited_code':None,
-             'winner_team': 'Not Declared',
-             'data':[],
-             'tournament_detais':[],             
-             'message':'',
-             'match':[]
-             }
+    data = {
+            'status':'',
+            'create_group_status':False,
+            'max_team': None,
+            'total_register_team':None,
+            'is_organizer': False,
+            'is_register': False,
+            'sub_organizer_data':[],
+            'organizer_name_data':[],
+            'invited_code':None,
+            'winner_team': 'Not Declared',
+            'data':[],
+            'tournament_detais':[],
+            'point_table':[],
+            'elemination':[], 
+            'final':[], 
+            'message':'',
+            'match':[]
+            }
+    try:        
         user_uuid = request.GET.get('user_uuid')
         user_secret_key = request.GET.get('user_secret_key')
         league_uuid = request.GET.get('league_uuid')
@@ -4919,7 +5630,6 @@ def view_leagues(request):
         '''
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
         check_leagues = Leagues.objects.filter(uuid=league_uuid,secret_key=league_secret_key)
-        
         if check_user.exists() and check_leagues.exists():
             leagues = check_leagues.values('uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
                                'registration_start_date','registration_end_date','team_type__name','team_person__name',
@@ -4952,7 +5662,10 @@ def view_leagues(request):
                 organizer_list.append(name)
             data['organizer_name_data'] = organizer_list
 
-            sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))  # Corrected "falt" to "flat"
+            orgs = list(User.objects.filter(id=league.created_by.id).values_list('id', flat=True))
+            sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))  
+            orgs_list = orgs + sub_org_list
+
             if get_user == league.created_by or get_user.id in sub_org_list:
                 data['is_organizer'] =  True
                 data['invited_code'] =  league.invited_code
@@ -4964,26 +5677,62 @@ def view_leagues(request):
 
             ######## tournament matches details ########
             #working
-            tournament_details = Tournament.objects.filter(leagues=check_leagues.first()).order_by("match_number").values("id","match_number","uuid","secret_key","leagues__name"
-                                                                                                                          ,"team1_id", "team2_id", "team1__team_image", "team2__team_image", 
+            tournament_details = Tournament.objects.filter(leagues=check_leagues.first()).order_by("match_number").values("id","match_number","uuid","secret_key","leagues__name",
+                                                                                                                          "team1_id", "team2_id", "team1__team_image", "team2__team_image", 
                                                                                                                           "team1__name", "team2__name", "winner_team_id", "winner_team__name", 
-                                                                                                                          "playing_date_time","match_type","group__court","is_completed"
-                                                                                                                          ,"elimination_round","court_sn","set_number","court_num","points","is_drow")
-
+                                                                                                                          "playing_date_time","match_type","group__court","is_completed",
+                                                                                                                          "elimination_round","court_sn","set_number","court_num","points","is_drow")
+            
             for sc in tournament_details:
                 if sc["group__court"] is None:
                     sc["group__court"] = sc["court_sn"]
 
                 team_1_player = list(Player.objects.filter(team__id=sc["team1_id"]).values_list("player_id", flat=True))
                 team_2_player = list(Player.objects.filter(team__id=sc["team2_id"]).values_list("player_id", flat=True))
-
                 team_1_created_by = Team.objects.filter(id=sc["team1_id"]).first().created_by
                 team_2_created_by = Team.objects.filter(id=sc["team2_id"]).first().created_by
 
-                if get_user == league.created_by or get_user.id in sub_org_list or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id or get_user.id in team_1_player or get_user.id in team_2_player:
+                if (get_user.id in orgs_list) or (get_user.id in team_1_player) or (get_user == team_1_created_by) or (get_user.id in team_2_player) or ((get_user == team_2_created_by)):
                     sc["is_edit"] = True
                 else:
                     sc["is_edit"] = False
+
+                check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+                if check_score_approved.exists():
+                    sc["is_score_approved"] = True
+                    sc["is_edit"] = False
+                else:
+                    sc["is_score_approved"] = False                    
+                
+                check_score_reported = TournamentScoreReport.objects.filter(tournament__id=sc["id"], status="Pending")
+                if check_score_reported.exists():
+                    sc["is_score_reported"] = True 
+                    if (get_user.id in orgs_list):
+                        sc["is_edit"] = True
+                    else:
+                        sc["is_edit"] = False
+                else:
+                    sc["is_score_reported"] = False   
+
+                team1_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True).exists()
+                team2_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team2_approval=True).exists()
+                organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], organizer_approval=True).exists()
+                check_score_set = TournamentSetsResult.objects.filter(tournament__id=sc["id"])
+
+                if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                
+                elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                    sc['is_organizer'] = True
+                    sc["is_button_show"] = True
+                else:   
+                    sc['is_organizer'] = False             
+                    sc["is_button_show"] = False
 
                 if sc["team1__team_image"] != "":
                     img_str = sc["team1__team_image"]
@@ -5049,9 +5798,268 @@ def view_leagues(request):
                     }
                     ]
                 sc["score"] = score
-
+                # print(score)
+            
+              
             data['match'] = tournament_details
             ######## tournament matches details ########
+
+            ########### Knock Out part ####################
+
+            #this data for Elimination Round   
+            knock_out_tournament_elimination_data = Tournament.objects.filter(leagues=check_leagues.first(),match_type="Elimination Round").values("id","uuid","secret_key","match_number","match_type","elimination_round","team1__name", "team1_id", "team2_id"
+                                                                                                            ,"team1__team_image","team2__name","team2__team_image","winner_team__name", "winner_team_id", "loser_team_id", "winner_team__team_image","loser_team__name","loser_team__team_image","is_completed","play_ground_name")
+            for ele_tour in knock_out_tournament_elimination_data:
+                # ele_tour["is_edit"] = get_user.is_organizer and check_leagues.first().created_by == get_user or ele_tour["team1_id"] == get_user.id or ele_tour["team2_id"] == get_user.id
+                if (get_user.id in orgs_list) or (get_user.id in team_1_player) or (get_user == team_1_created_by) or (get_user.id in team_2_player) or ((get_user == team_2_created_by)):
+                    sc["is_edit"] = True
+                else:
+                    sc["is_edit"] = False
+
+                check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+                if check_score_approved.exists():
+                    sc["is_score_approved"] = True
+                    sc["is_edit"] = False
+                else:
+                    sc["is_score_approved"] = False                    
+                
+                check_score_reported = TournamentScoreReport.objects.filter(tournament__id=sc["id"], status="Pending")
+                if check_score_reported.exists():
+                    sc["is_score_reported"] = True 
+                    if (get_user.id in orgs_list):
+                        sc["is_edit"] = True
+                    else:
+                        sc["is_edit"] = False
+                else:
+                    sc["is_score_reported"] = False   
+
+                team1_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True).exists()
+                team2_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team2_approval=True).exists()
+                organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], organizer_approval=True).exists()
+                check_score_set = TournamentSetsResult.objects.filter(tournament__id=sc["id"])
+
+                if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                
+                elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                    sc['is_organizer'] = True
+                    sc["is_button_show"] = True
+                else:   
+                    sc['is_organizer'] = False             
+                    sc["is_button_show"] = False
+
+                score = [{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True},{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True}]
+                
+                if ele_tour["team1_id"] == ele_tour["winner_team_id"] and ele_tour["winner_team_id"] is not None:
+                    score[0]["is_win"] = True
+                    score[1]["is_win"] = False
+                elif ele_tour["team2_id"] == ele_tour["winner_team_id"] and ele_tour["winner_team_id"] is not None:
+                    score[1]["is_win"] = True
+                    score[0]["is_win"] = False
+                else:
+                    score[1]["is_win"] = None
+                    score[0]["is_win"] = None
+                score_details = TournamentSetsResult.objects.filter(tournament_id=ele_tour["id"]).values()
+                score[0]["name"] = ele_tour["team1__name"]
+                score[1]["name"] = ele_tour["team2__name"]
+                score[0]["set"] = ["s1","s2","s3"]
+                score[1]["set"] = ["s1","s2","s3"]
+                for l__ in range(3):
+                    
+                    if l__ < len(score_details):
+                        l = {"team1_point":score_details[l__]["team1_point"],"team2_point":score_details[l__]["team2_point"]}
+                    else:
+                        l = {"team1_point":None,"team2_point":None}
+                    
+                    score[0]["score"].append(l["team1_point"])
+                    score[1]["score"].append(l["team2_point"])
+                    
+                    if l["team1_point"] == None or l["team1_point"] == None:
+                        score[0]["win_status"].append(None)
+                        score[1]["win_status"].append(None)
+                    elif l["team1_point"] > l["team2_point"]:
+                        score[0]["win_status"].append(True)
+                        score[1]["win_status"].append(False)
+                    else:
+                        score[0]["win_status"].append(False)
+                        score[1]["win_status"].append(True)
+                ele_tour["score"] = score
+            data['elemination'] = list(knock_out_tournament_elimination_data)
+
+            #this data for Semi Final   
+            knock_out_semifinal_tournament_data = Tournament.objects.filter(leagues=check_leagues.first(),match_type="Semi Final").values("id","uuid","secret_key","match_number","match_type","elimination_round","team1__name", "team1_id", "team2_id"
+                                                                                                            ,"team1__team_image","team2__name","team2__team_image","winner_team__name", "winner_team_id", "loser_team_id", "winner_team__team_image","loser_team__name","loser_team__team_image","is_completed","play_ground_name")
+            for semi_tour in knock_out_semifinal_tournament_data:
+                if (get_user.id in orgs_list) or (get_user.id in team_1_player) or (get_user == team_1_created_by) or (get_user.id in team_2_player) or ((get_user == team_2_created_by)):
+                    sc["is_edit"] = True
+                else:
+                    sc["is_edit"] = False
+                
+                check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+                if check_score_approved.exists():
+                    sc["is_score_approved"] = True
+                    sc["is_edit"] = False
+                else:
+                    sc["is_score_approved"] = False                    
+                
+                check_score_reported = TournamentScoreReport.objects.filter(tournament__id=sc["id"], status="Pending")
+                if check_score_reported.exists():
+                    sc["is_score_reported"] = True 
+                    if (get_user.id in orgs_list):
+                        sc["is_edit"] = True
+                    else:
+                        sc["is_edit"] = False
+                else:
+                    sc["is_score_reported"] = False   
+
+                team1_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True).exists()
+                team2_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team2_approval=True).exists()
+                organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], organizer_approval=True).exists()
+                check_score_set = TournamentSetsResult.objects.filter(tournament__id=sc["id"])
+
+                if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                
+                elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                    sc['is_organizer'] = True
+                    sc["is_button_show"] = True
+                else:   
+                    sc['is_organizer'] = False             
+                    sc["is_button_show"] = False
+
+                score = [{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True},{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True}]
+                
+                if semi_tour["team1_id"] == semi_tour["winner_team_id"] and semi_tour["winner_team_id"] is not None:
+                    score[0]["is_win"] = True
+                    score[1]["is_win"] = False
+                elif semi_tour["team2_id"] == semi_tour["winner_team_id"] and semi_tour["winner_team_id"] is not None:
+                    score[1]["is_win"] = True
+                    score[0]["is_win"] = False
+                else:
+                    score[1]["is_win"] = None
+                    score[0]["is_win"] = None
+                score_details = TournamentSetsResult.objects.filter(tournament_id=semi_tour["id"]).values()
+                score[0]["name"] = semi_tour["team1__name"]
+                score[1]["name"] = semi_tour["team2__name"]
+                score[0]["set"] = ["s1","s2","s3"]
+                score[1]["set"] = ["s1","s2","s3"]
+                for l__ in range(3):
+                    
+                    if l__ < len(score_details):
+                        l = {"team1_point":score_details[l__]["team1_point"],"team2_point":score_details[l__]["team2_point"]}
+                    else:
+                        l = {"team1_point":None,"team2_point":None}
+                    
+                    score[0]["score"].append(l["team1_point"])
+                    score[1]["score"].append(l["team2_point"])
+                    
+                    if l["team1_point"] == None or l["team1_point"] == None:
+                        score[0]["win_status"].append(None)
+                        score[1]["win_status"].append(None)
+                    elif l["team1_point"] > l["team2_point"]:
+                        score[0]["win_status"].append(True)
+                        score[1]["win_status"].append(False)
+                    else:
+                        score[0]["win_status"].append(False)
+                        score[1]["win_status"].append(True)
+                semi_tour["score"] = score
+            data['semi_final'] = list(knock_out_semifinal_tournament_data)
+
+            #this data for Final 
+            knock_out_final_tournament_data = Tournament.objects.filter(leagues=check_leagues.first(),match_type="Final").values("id","uuid","secret_key","match_number","match_type","elimination_round","team1__name", "team1_id", "team2_id"
+                                                                                                            ,"team1__team_image","team2__name","team2__team_image","winner_team__name", "winner_team_id", "loser_team_id", "winner_team__team_image","loser_team__name","loser_team__team_image","is_completed","play_ground_name")
+            for final_tour in knock_out_final_tournament_data:
+                if (get_user.id in orgs_list) or (get_user.id in team_1_player) or (get_user == team_1_created_by) or (get_user.id in team_2_player) or ((get_user == team_2_created_by)):
+                    sc["is_edit"] = True
+                else:
+                    sc["is_edit"] = False
+
+                check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True, team2_approval=True)
+
+                if check_score_approved.exists():
+                    sc["is_score_approved"] = True
+                    sc["is_edit"] = False
+                else:
+                    sc["is_score_approved"] = False                    
+                
+                check_score_reported = TournamentScoreReport.objects.filter(tournament__id=sc["id"], status="Pending")
+                if check_score_reported.exists():
+                    sc["is_score_reported"] = True 
+                    if (get_user.id in orgs_list):
+                        sc["is_edit"] = True
+                    else:
+                        sc["is_edit"] = False
+                else:
+                    sc["is_score_reported"] = False   
+
+                team1_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True).exists()
+                team2_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team2_approval=True).exists()
+                organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], organizer_approval=True).exists()
+                check_score_set = TournamentSetsResult.objects.filter(tournament__id=sc["id"])
+
+                if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                
+                elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                    sc['is_organizer'] = True
+                    sc["is_button_show"] = True
+                else:   
+                    sc['is_organizer'] = False             
+                    sc["is_button_show"] = False
+
+                score = [{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True},{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True}]
+                
+                if final_tour["team1_id"] == final_tour["winner_team_id"] and final_tour["winner_team_id"] is not None:
+                    score[0]["is_win"] = True
+                    score[1]["is_win"] = False
+                elif final_tour["team2_id"] == final_tour["winner_team_id"] and final_tour["winner_team_id"] is not None:
+                    score[1]["is_win"] = True
+                    score[0]["is_win"] = False
+                else:
+                    score[1]["is_win"] = None
+                    score[0]["is_win"] = None
+                score_details = TournamentSetsResult.objects.filter(tournament_id=final_tour["id"]).values()
+                score[0]["name"] = final_tour["team1__name"]
+                score[1]["name"] = final_tour["team2__name"]
+                score[0]["set"] = ["s1","s2","s3"]
+                score[1]["set"] = ["s1","s2","s3"]
+                for l__ in range(3):
+                    
+                    if l__ < len(score_details):
+                        l = {"team1_point":score_details[l__]["team1_point"],"team2_point":score_details[l__]["team2_point"]}
+                    else:
+                        l = {"team1_point":None,"team2_point":None}
+                    
+                    score[0]["score"].append(l["team1_point"])
+                    score[1]["score"].append(l["team2_point"])
+                    
+                    if l["team1_point"] == None or l["team1_point"] == None:
+                        score[0]["win_status"].append(None)
+                        score[1]["win_status"].append(None)
+                    elif l["team1_point"] > l["team2_point"]:
+                        score[0]["win_status"].append(True)
+                        score[1]["win_status"].append(False)
+                    else:
+                        score[0]["win_status"].append(False)
+                        score[1]["win_status"].append(True)
+                final_tour["score"] = score
+            data['final'] = list(knock_out_final_tournament_data)
+
+            ########### Knock Out part ####################
             
             ########### declear winner team and update ##########
             play_type_check_win = league.play_type
@@ -5090,9 +6098,79 @@ def view_leagues(request):
                     pass
             ########### declear winner team and update ##########
 
-            ######### Tornament all teams details ############
-            ################### Change 1 To Remove###########
+
+            #If Tournament is Group stage or Round Robin
+            ############# point table ########################
+            all_group_details = RoundRobinGroup.objects.filter(league_for=league)
+            for grp in all_group_details:
+                teams = grp.all_teams.all()
+                group_score_point_table = []
+                # print(teams)
+                for team in teams:
+                    team_score = {}
+                    total_match_detals = Tournament.objects.filter(leagues=league, match_type="Round Robin").filter(Q(team1=team) | Q(team2=team))
+                    completed_match_details = total_match_detals.filter(is_completed=True)
+                    win_match_details = completed_match_details.filter(winner_team=team).count()
+                    loss_match_details = completed_match_details.filter(loser_team=team).count()
+                    drow_match = len(completed_match_details) - (win_match_details + loss_match_details)
+                    match_list = list(total_match_detals.values_list("id", flat=True))
+                    for_score = 0
+                    aginst_score = 0
+                    for sc in match_list:
+                        co_team_position = Tournament.objects.filter(id=sc).first()
+                        set_score = TournamentSetsResult.objects.filter(tournament_id=sc)
+                        if co_team_position.team1 == team:
+                           for_score = for_score + sum(list(set_score.values_list("team1_point", flat=True)))
+                           aginst_score = aginst_score + sum(list(set_score.values_list("team2_point", flat=True)))
+                        else:
+                            for_score = for_score + sum(list(set_score.values_list("team2_point", flat=True)))
+                            aginst_score = aginst_score + sum(list(set_score.values_list("team1_point", flat=True)))
+                    
+                    point = (win_match_details * 3) + (drow_match * 1)
+                    team_score["uuid"], team_score["secret_key"] = team.uuid, team.secret_key
+                    team_score["name"], team_score["completed_match"] = team.name, len(completed_match_details)
+                    team_score["win_match"], team_score["loss_match"] = win_match_details, loss_match_details
+                    team_score["drow_match"], team_score["for_score"] = drow_match, for_score
+                    team_score["aginst_score"], team_score["point"] = aginst_score, point
+                    group_score_point_table.append(team_score)
+                # Append team details to group data
+                tournament_details_group = Tournament.objects.filter(leagues=league,group=grp).values("id","uuid","secret_key","team1__name","team2__name","leagues__name","match_type","is_completed","group__court","play_ground_name","playing_date_time","group_id")
+                for k_ in tournament_details_group:
+                    round_robin_group_detals = RoundRobinGroup.objects.filter(league_for=league, id=k_["group_id"]).first()
+                    k_["sets"] = round_robin_group_detals.number_sets
+                    k_["court"] = round_robin_group_detals.court
+                    k_["score"] = list(TournamentSetsResult.objects.filter(tournament_id=k_["id"]).values())
+                
+                group_score_point_table = sorted(group_score_point_table, key=lambda x: (x['point'], x['for_score']), reverse=True)
+                # print(group_score_point_table)
+
+                ###### tournament winning team update and declare
+                if play_type_check_win == "Round Robin":
+                    total_tournament = Tournament.objects.filter(leagues=check_leagues.first(),match_type="Round Robin",leagues__play_type="Round Robin")
+                    completed_tournament = total_tournament.filter(is_completed=True)
+                    if total_tournament.count() == completed_tournament.count():
+                        winner_team = Team.objects.filter(uuid=group_score_point_table[0]["uuid"]).first()
+                        winner_team_name = winner_team.name
+                        league.winner_team = winner_team
+                        league.is_complete = True
+                        league.save()
+                        data["winner_team"] = winner_team_name
+                grp_data = {
+                    "id": grp.id,
+                    "court": grp.court,
+                    "league_for_id": grp.league_for_id,
+                    "all_games_status": grp.all_games_status,
+                    "all_tems": group_score_point_table,
+                    "tournament": tournament_details_group,
+                    "seleced_teams_id": grp.seleced_teams_id
+                }
+                data['point_table'].append(grp_data)
+
             all_team = check_leagues.first().registered_team.all()
+            ############# point table ########################
+
+
+            ######### Tornament all teams details ############
             teams = []
             for t in all_team:
                 team_d = Team.objects.filter(id=t.id).values()
@@ -5110,9 +6188,9 @@ def view_leagues(request):
             data["status"], data["message"] = status.HTTP_200_OK, "League data"
         else:
             data["status"], data['data'], data["message"] = status.HTTP_404_NOT_FOUND, [],  "User or League not found."
-    # except Exception as e :
-    #     data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
-        return Response(data)
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+    return Response(data)
 
 #old
 # @api_view(('POST',))
@@ -5832,6 +6910,144 @@ def payment_for_team_registration(request,charge_for,my_data,checkout_session_id
             return render(request,"failed_paymentregister_team.html")
     except:
         return render(request,"failed_paymentregister_team.html")
+
+
+@api_view(('POST',))
+def register_teams_to_league(request):
+    data = {'status':'','data':[],'message':''}
+    try:        
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        league_uuid = request.data.get('league_uuid')
+        league_secret_key = request.data.get('league_secret_key')
+        team_uuid_all = request.data.get('team_uuid')
+        team_secret_key_all = request.data.get('team_secret_key') 
+    
+        if len(team_uuid_all) != len(team_secret_key_all):
+            return Response({"status": status.HTTP_400_BAD_REQUEST, "message": "Mismatched team UUIDs and secret keys."})
+
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        check_league = Leagues.objects.filter(uuid=league_uuid,secret_key=league_secret_key)
+
+        if not check_user.exists() or not check_league.exists():
+            data['status'] = status.HTTP_400_BAD_REQUEST
+            data['message'] =  f"User or Tournament not found"
+            return Response(data)
+        
+        get_league = check_league.first() 
+        get_user = check_user.first()
+
+        check_wallet = Wallet.objects.filter(user=get_user)
+        if not check_wallet.exists():
+            return Response(
+                {"status": status.HTTP_404_NOT_FOUND, "message": "No wallet found.", "data": []}
+            )
+        
+        get_wallet = check_wallet.first()
+        balance = get_wallet.balance
+
+        total_registered_teams = get_league.registered_team.count()
+        today_date = timezone.now()
+        if get_league.registration_end_date < today_date or get_league.max_number_team == total_registered_teams or get_league.is_complete == True:
+            data['status'] = status.HTTP_400_BAD_REQUEST
+            data['message'] =  f"Registration is over."
+            return Response(data)
+        
+        team_uuid_all = str(team_uuid_all).split(",")
+        team_secret_key_all = str(team_secret_key_all).split(",")
+        all_team_id = []
+        
+        for t in range(len(team_uuid_all)):
+            team = Team.objects.filter(uuid=team_uuid_all[t],secret_key=team_secret_key_all[t])
+            if team.exists():
+                team_id = team.first().id
+                all_team_id.append(team_id)
+
+        if len(all_team_id) == 0 :
+            return Response({"status": status.HTTP_400_BAD_REQUEST, "message": "No valid teams found."})
+
+       
+        if get_league.start_rank and get_league.end_rank:
+            for team_id in all_team_id:
+                team = Team.objects.filter(id=team_id).values().first()
+                players = Player.objects.filter(team_id=team_id).select_related('player')
+
+                if not players.exists():
+                    return Response({"status": status.HTTP_400_BAD_REQUEST, "message": f"Team {team['name']} has no players."})
+
+                team_rank = sum(float(p.player.rank or 0) for p in players) / max(len(players), 1)
+                
+                if not (get_league.start_rank <= team_rank <= get_league.end_rank):
+                    return Response({"status": status.HTTP_400_BAD_REQUEST, "message": f"{team['name']} does not have the required rank."})
+
+        # Calculate fees
+        number_of_team_join = len(all_team_id)
+        others_total = sum(get_league.others_fees.values()) if get_league.others_fees else 0
+        total_amount = (get_league.registration_fee + others_total) * number_of_team_join
+
+        organizer_amount = (float(total_amount)* settings.ORGANIZER_PERCENTAGE) / 100
+        admin_amount = (float(total_amount)* settings.ADMIN_PERCENTAGE) / 100
+
+        if float(balance) >= float(total_amount):
+            get_league.registered_team.add(*all_team_id)
+
+            WalletTransaction.objects.create(
+                sender = get_user,
+                reciver = get_league.created_by,                        
+                admin_cost=Decimal(admin_amount),
+                getway_charge = 0,                        
+                transaction_for="TeamRegistration",                                   
+                transaction_type="debit",
+                amount=Decimal(total_amount),
+                payment_id=None, 
+                description=f"${total_amount} is debited from your PickleIt wallet for registering teams to league {get_league.name}."
+                )
+            
+            admin_wallet = Wallet.objects.filter(user__is_superuser=True).first()
+            admin_balance = float(admin_wallet.balance) + float(admin_amount)
+            admin_wallet.balance = Decimal(admin_balance)
+            admin_wallet.save()
+
+            # admin_wallet = AdminWallet.objects.first()
+            # stripe_fee = (float(total_amount) * 0.029) + 0.30
+            # final_amount = float(total_amount) - float(stripe_fee)
+
+            # admin_amount = (float(final_amount)* settings.ADMIN_PERCENTAGE) / 100
+            # AdminWalletTransaction.objects.create(
+            #     wallet=admin_wallet,
+            #     transaction_type="credit",
+            #     amount=Decimal(admin_amount),
+            #     payment_id=None,  
+            #     description=f"${admin_amount} is credited to admin wallet from team registration into league {get_league.name}."
+            # )
+            
+            organizer_wallet = Wallet.objects.filter(user=get_league.created_by).first()
+            organizer_balance = float(organizer_wallet.balance) + float(organizer_amount)
+            organizer_wallet.balance = Decimal(organizer_balance)
+            organizer_wallet.save()
+
+            # organizer_amount = (float(final_amount)* settings.ORGANIZER_PERCENTAGE) / 100
+            # if organizer_wallet:
+            #     WalletTransaction.objects.create(
+            #         wallet=organizer_wallet,
+            #         transaction_type="credit",
+            #         amount=Decimal(organizer_amount),
+            #         payment_id=None, 
+            #         description=f"${organizer_amount} is credited to your PickleIt wallet from team registration into league {get_league.name}."
+            #     )
+
+            data["status"] = status.HTTP_200_OK
+            data["message"] = f"You have successfully registered the teams to league {get_league.name}"
+
+        else:
+            remaining_amount = float(total_amount) - float(balance)
+            data['status'] = status.HTTP_200_OK
+            data["message"] = f"Please add ${remaining_amount} to your wallet to register the teams." 
+        
+    except Exception as e :
+        data['status'] = status.HTTP_400_BAD_REQUEST
+        data['message'] =  f"{e}"
+    return Response(data)
 
 
 @api_view(('GET',))
@@ -6897,7 +8113,7 @@ def view_playtype_details(request):
         data['teams'] = teams        
         data['max_team'] =  league.max_number_team
         data['total_register_team'] =  league.registered_team.all().count()
-        data['tournament_detais'] = list(LeaguesPlayType.objects.filter(league_for = check_leagues.first()).values())
+        data['tournament_detais'] = LeaguesPlayType.objects.filter(league_for = check_leagues.first()).values()
         data['cancellation_policy'] = list(LeaguesCancellationPolicy.objects.filter(league = check_leagues.first()).values("within_day","refund_percentage"))
         data["create_group_status"] = get_user.is_organizer and check_leagues.first().created_by == get_user
         data['data'] = leagues
@@ -6937,21 +8153,63 @@ def view_match_details(request):
                                                                                                                         "team1__name", "team2__name", "winner_team_id", "winner_team__name", 
                                                                                                                         "playing_date_time","match_type","group__court","is_completed"
                                                                                                                         ,"elimination_round","court_sn","set_number","court_num","points","is_drow")
-
+        
         sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))
+        organizers = list(User.objects.filter(id=league.created_by.id).values_list('id', flat=True))
+        
+        
+        organizer_list = organizers + sub_org_list
         for sc in tournament_details:
             if sc["group__court"] is None:
                 sc["group__court"] = sc["court_sn"]
+
             team_1_player = list(Player.objects.filter(team__id=sc["team1_id"]).values_list("player_id", flat=True))
             team_2_player = list(Player.objects.filter(team__id=sc["team2_id"]).values_list("player_id", flat=True))
-
             team_1_created_by = Team.objects.filter(id=sc["team1_id"]).first().created_by
             team_2_created_by = Team.objects.filter(id=sc["team2_id"]).first().created_by
+            
 
-            if get_user == league.created_by or get_user.id in sub_org_list or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id or get_user.id in team_1_player or get_user.id in team_2_player:
+            if (get_user.id in organizer_list) or (get_user.id in team_1_player) or (get_user == team_1_created_by) or (get_user.id in team_2_player) or ((get_user == team_2_created_by)):
                 sc["is_edit"] = True
             else:
                 sc["is_edit"] = False
+
+            check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+            if check_score_approved.exists():
+                sc["is_score_approved"] = True
+                sc["is_edit"] = False
+            else:
+                sc["is_score_approved"] = False                    
+            
+            check_score_reported = TournamentScoreReport.objects.filter(tournament__id=sc["id"], status="Pending")
+            if check_score_reported.exists():
+                sc["is_score_reported"] = True 
+                if get_user.id in organizer_list:
+                    sc["is_edit"] = True
+                else:
+                    sc["is_edit"] = False
+            else:
+                sc["is_score_reported"] = False   
+
+            team1_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True).exists()
+            team2_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team2_approval=True).exists()
+            organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], organizer_approval=True).exists()
+            check_score_set = TournamentSetsResult.objects.filter(tournament__id=sc["id"])
+
+            if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                sc['is_organizer'] = False
+                sc["is_button_show"] = True
+            
+            elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                sc['is_organizer'] = False
+                sc["is_button_show"] = True
+            elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                sc['is_organizer'] = True
+                sc["is_button_show"] = True
+            else:   
+                sc['is_organizer'] = False             
+                sc["is_button_show"] = False
 
             if sc["team1__team_image"] != "":
                 img_str = sc["team1__team_image"]
@@ -7055,21 +8313,62 @@ def view_elimination_details(request):
     if check_user.exists() and check_leagues.exists():
         league = check_leagues.first()
         get_user = check_user.first()
-        sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))
+        sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))        
+        organizers = list(User.objects.filter(id=league.created_by.id).values_list('id', flat=True))
+        
+        
+        organizer_list = organizers + sub_org_list
         knock_out_tournament_elimination_data = Tournament.objects.filter(leagues=check_leagues.first(),match_type="Elimination Round").values("id","uuid","secret_key","match_number","match_type","elimination_round","team1__name", "team1_id", "team2_id"
                                                                                                             ,"team1__team_image","team2__name","team2__team_image","winner_team__name", "winner_team_id", "loser_team_id", "winner_team__team_image","loser_team__name","loser_team__team_image","is_completed","play_ground_name")
         for ele_tour in knock_out_tournament_elimination_data:
+
             team_1_player = list(Player.objects.filter(team__id=ele_tour["team1_id"]).values_list("player_id", flat=True))
             team_2_player = list(Player.objects.filter(team__id=ele_tour["team2_id"]).values_list("player_id", flat=True))
-
             team_1_created_by = Team.objects.filter(id=ele_tour["team1_id"]).first().created_by
             team_2_created_by = Team.objects.filter(id=ele_tour["team2_id"]).first().created_by
 
             # ele_tour["is_edit"] = get_user.is_organizer and check_leagues.first().created_by == get_user or ele_tour["team1_id"] == get_user.id or ele_tour["team2_id"] == get_user.id
-            if get_user == league.created_by or get_user.id in sub_org_list or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id or get_user.id in team_1_player or get_user.id in team_2_player:
+            if get_user.id in organizer_list or get_user.id in team_1_player or get_user.id in team_2_player or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id :
                 ele_tour["is_edit"] = True
             else:
                 ele_tour["is_edit"] = False
+            
+            check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=ele_tour["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+            if check_score_approved.exists():
+                ele_tour["is_score_approved"] = True
+                ele_tour["is_edit"] = False
+            else:
+                ele_tour["is_score_approved"] = False                    
+            
+            check_score_reported = TournamentScoreReport.objects.filter(tournament__id=ele_tour["id"], status="Pending")
+            if check_score_reported.exists():
+                ele_tour["is_score_reported"] = True 
+                if (get_user == league.created_by) or (get_user.id in sub_org_list):
+                    ele_tour["is_edit"] = True
+                else:
+                    ele_tour["is_edit"] = False
+            else:
+                ele_tour["is_score_reported"] = False   
+
+            team1_approval = TournamentScoreApproval.objects.filter(tournament__id=ele_tour["id"], team1_approval=True).exists()
+            team2_approval = TournamentScoreApproval.objects.filter(tournament__id=ele_tour["id"], team2_approval=True).exists()
+            organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=ele_tour["id"], organizer_approval=True).exists()
+            check_score_set = TournamentSetsResult.objects.filter(tournament__id=ele_tour["id"])
+
+            if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                ele_tour['is_organizer'] = False
+                ele_tour["is_button_show"] = True
+            
+            elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                ele_tour['is_organizer'] = False
+                ele_tour["is_button_show"] = True
+            elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                ele_tour['is_organizer'] = True
+                ele_tour["is_button_show"] = True
+            else:   
+                ele_tour['is_organizer'] = False             
+                ele_tour["is_button_show"] = False
 
             score = [{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True},{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True}]
             
@@ -7115,14 +8414,51 @@ def view_elimination_details(request):
         for semi_tour in knock_out_semifinal_tournament_data:
             team_1_player = list(Player.objects.filter(team__id=semi_tour["team1_id"]).values_list("player_id", flat=True))
             team_2_player = list(Player.objects.filter(team__id=semi_tour["team2_id"]).values_list("player_id", flat=True))
-
             team_1_created_by = Team.objects.filter(id=semi_tour["team1_id"]).first().created_by
             team_2_created_by = Team.objects.filter(id=semi_tour["team2_id"]).first().created_by
 
-            if get_user == league.created_by or get_user.id in sub_org_list or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id or get_user.id in team_1_player or get_user.id in team_2_player:
+            if get_user.id in organizer_list or get_user.id in team_1_player or get_user.id in team_2_player or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id :
                 semi_tour["is_edit"] = True
             else:
                 semi_tour["is_edit"] = False
+            
+            check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=semi_tour["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+            if check_score_approved.exists():
+                semi_tour["is_score_approved"] = True
+                semi_tour["is_edit"] = False
+            else:
+                semi_tour["is_score_approved"] = False                    
+            
+            check_score_reported = TournamentScoreReport.objects.filter(tournament__id=semi_tour["id"], status="Pending")
+
+            if check_score_reported.exists():
+                semi_tour["is_score_reported"] = True 
+                if get_user.id in organizer_list:
+                    semi_tour["is_edit"] = True
+                else:
+                    semi_tour["is_edit"] = False
+            else:
+                semi_tour["is_score_reported"] = False   
+
+            team1_approval = TournamentScoreApproval.objects.filter(tournament__id=semi_tour["id"], team1_approval=True).exists()
+            team2_approval = TournamentScoreApproval.objects.filter(tournament__id=semi_tour["id"], team2_approval=True).exists()
+            organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=semi_tour["id"], organizer_approval=True).exists()
+            check_score_set = TournamentSetsResult.objects.filter(tournament__id=semi_tour["id"])
+
+            if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                semi_tour['is_organizer'] = False
+                semi_tour["is_button_show"] = True
+            
+            elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                semi_tour['is_organizer'] = False
+                semi_tour["is_button_show"] = True
+            elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                semi_tour['is_organizer'] = True
+                semi_tour["is_button_show"] = True
+            else:   
+                semi_tour['is_organizer'] = False             
+                semi_tour["is_button_show"] = False
 
             score = [{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True},{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True}]
             
@@ -7168,14 +8504,51 @@ def view_elimination_details(request):
         for final_tour in knock_out_final_tournament_data:
             team_1_player = list(Player.objects.filter(team__id=final_tour["team1_id"]).values_list("player_id", flat=True))
             team_2_player = list(Player.objects.filter(team__id=final_tour["team2_id"]).values_list("player_id", flat=True))
-
             team_1_created_by = Team.objects.filter(id=final_tour["team1_id"]).first().created_by
             team_2_created_by = Team.objects.filter(id=final_tour["team2_id"]).first().created_by
 
-            if get_user == league.created_by or get_user.id in sub_org_list or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id or get_user.id in team_1_player or get_user.id in team_2_player:
+            if get_user.id in organizer_list or get_user.id in team_1_player or get_user.id in team_2_player or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id :
                 final_tour["is_edit"] = True
             else:
                 final_tour["is_edit"] = False
+            
+            check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=final_tour["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+            if check_score_approved.exists():
+                final_tour["is_score_approved"] = True
+                final_tour["is_edit"] = False
+            else:
+                final_tour["is_score_approved"] = False                    
+            
+            check_score_reported = TournamentScoreReport.objects.filter(tournament__id=final_tour["id"], status="Pending")
+
+            if check_score_reported.exists():
+                final_tour["is_score_reported"] = True 
+                if get_user.id in organizer_list:
+                    final_tour["is_edit"] = True
+                else:
+                    final_tour["is_edit"] = False
+            else:
+                final_tour["is_score_reported"] = False   
+
+            team1_approval = TournamentScoreApproval.objects.filter(tournament__id=final_tour["id"], team1_approval=True).exists()
+            team2_approval = TournamentScoreApproval.objects.filter(tournament__id=final_tour["id"], team2_approval=True).exists()
+            organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=final_tour["id"], organizer_approval=True).exists()
+            check_score_set = TournamentSetsResult.objects.filter(tournament__id=final_tour["id"])
+
+            if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                final_tour['is_organizer'] = False
+                final_tour["is_button_show"] = True
+            
+            elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                final_tour['is_organizer'] = False
+                final_tour["is_button_show"] = True
+            elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                final_tour['is_organizer'] = True
+                final_tour["is_button_show"] = True
+            else:   
+                final_tour['is_organizer'] = False             
+                final_tour["is_button_show"] = False
 
             score = [{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True},{"name": "","set": [],"score": [],"win_status": [],"is_win": True,"is_completed": True}]
             
@@ -7342,19 +8715,60 @@ def get_match_result(request):
                                                                                                                         ,"elimination_round","court_sn","set_number","court_num","points","is_drow")
             
             sub_org_list = list(league.add_organizer.all().values_list("id", flat=True))
+            organizers = list(User.objects.filter(id=league.created_by.id).values_list('id', flat=True))
+            
+            
+            organizer_list = organizers + sub_org_list
             for sc in tournament_details:
                 if sc["group__court"] is None:
                     sc["group__court"] = sc["court_sn"]
+
                 team_1_player = list(Player.objects.filter(team__id=sc["team1_id"]).values_list("player_id", flat=True))
                 team_2_player = list(Player.objects.filter(team__id=sc["team2_id"]).values_list("player_id", flat=True))
-
                 team_1_created_by = Team.objects.filter(id=sc["team1_id"]).first().created_by
                 team_2_created_by = Team.objects.filter(id=sc["team2_id"]).first().created_by
 
-                if get_user == league.created_by or get_user.id in sub_org_list or team_1_created_by.id == get_user.id or team_2_created_by.id == get_user.id or get_user.id in team_1_player or get_user.id in team_2_player:
+                if get_user.id in organizer_list or (get_user.id in team_1_player) or (get_user == team_1_created_by) or (get_user.id in team_2_player) or (get_user == team_2_created_by):
                     sc["is_edit"] = True
                 else:
                     sc["is_edit"] = False
+
+                check_score_approved = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True, team2_approval=True, organizer_approval=True)
+
+                if check_score_approved.exists():
+                    sc["is_score_approved"] = True
+                    sc["is_edit"] = False
+                else:
+                    sc["is_score_approved"] = False                    
+                
+                check_score_reported = TournamentScoreReport.objects.filter(tournament__id=sc["id"], status="Pending")
+                if check_score_reported.exists():
+                    sc["is_score_reported"] = True 
+                    if get_user.id in organizer_list:
+                        sc["is_edit"] = True
+                    else:
+                        sc["is_edit"] = False
+                else:
+                    sc["is_score_reported"] = False   
+
+                team1_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team1_approval=True).exists()
+                team2_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], team2_approval=True).exists()
+                organizer_approval = TournamentScoreApproval.objects.filter(tournament__id=sc["id"], organizer_approval=True).exists()
+                check_score_set = TournamentSetsResult.objects.filter(tournament__id=sc["id"])
+
+                if check_score_set.exists() and not team1_approval and ((get_user.id in team_1_player) or (get_user == team_1_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                
+                elif check_score_set.exists() and not team2_approval and ((get_user.id in team_2_player) or (get_user == team_2_created_by)) and not check_score_reported.exists():
+                    sc['is_organizer'] = False
+                    sc["is_button_show"] = True
+                elif check_score_set.exists() and (get_user.id in organizer_list) and not organizer_approval:
+                    sc['is_organizer'] = True
+                    sc["is_button_show"] = True
+                else:   
+                    sc['is_organizer'] = False             
+                    sc["is_button_show"] = False
 
                 if sc["team1__team_image"] != "":
                     img_str = sc["team1__team_image"]
@@ -8692,6 +10106,28 @@ def profile_stats_match_history(request):
             user_info["last_name"] = get_user.last_name
             user_info["is_rank"] = get_user.is_rank
             user_info["profile_image"] = image
+            subscription = Subscription.objects.filter(user=get_user, end_date__gte=now()).first()
+            if subscription: 
+                plan_id = subscription.plan.id               
+                plan_name = subscription.plan.name
+                plan_price = subscription.plan.price                
+                start_date = subscription.start_date.strftime('%Y-%m-%d')
+                end_date = subscription.end_date.strftime('%Y-%m-%d')
+                is_active = subscription.is_active()                
+            else:
+                plan_id = None
+                plan_name = None
+                plan_price = None                
+                start_date = None
+                end_date = None
+                is_active = False
+            user_info["subscription_plan_id"] = plan_id
+            user_info["subscription_plan_name"] = plan_name
+            user_info["subscription_plan_price"] = plan_price
+            user_info["subscription_start_date"] = start_date
+            user_info["subscription_end_date"] = end_date
+            user_info["subscription_is_active"] = is_active 
+
             check_player = Player.objects.filter(player__id=get_user.id)
 
             if check_player.exists():

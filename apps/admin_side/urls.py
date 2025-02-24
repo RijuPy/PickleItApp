@@ -65,7 +65,8 @@ urlpatterns = [
     path("merchant_request_list/",views.merchant_request_list, name="merchant_request_list"),
     path("version_update_list/", views.version_update_list, name="version_update_list"),
     path("update_version/", views.version_update, name="update_version"),
-      
+    
+    path("read_notification/", views.mark_notifications_as_read, name="mark_notifications_as_read"),
 
     # path("charts/", views.charts, name="charts"),
     # path("widgets/", views.widgets, name="widgets"),

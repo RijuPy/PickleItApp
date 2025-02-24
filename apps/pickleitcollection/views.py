@@ -2,6 +2,7 @@ import base64
 import random
 import mimetypes
 import stripe, time, json
+from decimal import Decimal
 from datetime import datetime, timedelta
 from phonenumber_field.phonenumber import PhoneNumber
 
@@ -11,6 +12,7 @@ from apps.store.serializers import *
 from apps.pickleitcollection.models import *
 from apps.pickleitcollection.serializers import *
 from apps.store.models import *
+from apps.team.views import notify_edited_player
 
 from django.conf import settings
 from django.core.cache import cache
@@ -66,7 +68,7 @@ def screen_type_list(request):
     return Response(data)
 
 
-# new implement
+# Not using anymore
 @api_view(('POST',))
 def add_advertisement(request):
     data = {'status':'', 'message':''}
@@ -80,16 +82,6 @@ def add_advertisement(request):
         url = request.data.get('url')
         start_date = request.data.get('start_date')
         end_date = request.data.get('end_date')
-        user_uuid = request.data.get('user_uuid')
-        user_secret_key = request.data.get('user_secret_key')
-        advertisement_name = request.data.get('advertisement_name')
-        description = request.data.get('description')
-        image = request.FILES.get('image')
-        script_text = request.data.get('script_text')
-        url = request.data.get('url')
-        anoumt = request.data.get('anoumt')
-        unit = request.data.get('unit')
-        duration_unit = request.data.get('duration_unit')
 
         start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
@@ -97,10 +89,23 @@ def add_advertisement(request):
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
         if check_user.exists() :
             get_user = check_user.first()
-            obj = GenerateKey()
-            advertisement_key = obj.gen_advertisement_key()
-            Advertisement.objects.create(secret_key=advertisement_key,name=advertisement_name,image=image,url=url,anoumt = anoumt,unit = unit,duration_unit = duration_unit,created_by_id=get_user.id,script_text=script_text,description = description,start_date=start_date,end_date=end_date)
-            data["status"], data["message"] = status.HTTP_200_OK,"Advertisement created successfully"
+            if get_user.is_admin or get_user.is_sponsor:
+                obj = GenerateKey()
+                advertisement_key = obj.gen_advertisement_key()
+                Advertisement.objects.create(
+                    secret_key=advertisement_key,
+                    name=advertisement_name,
+                    image=image,
+                    url=url,
+                    created_by_id=get_user.id,
+                    script_text=script_text,
+                    description = description,
+                    start_date=start_date,
+                    end_date=end_date
+                    )
+                data["status"], data["message"] = status.HTTP_200_OK,"Advertisement created successfully"
+            else:
+                data["status"], data["message"] = status.HTTP_404_NOT_FOUND,"User is not Admin or Sponsor"
         else:
             data["status"], data["message"] = status.HTTP_404_NOT_FOUND, "User not found"
     except Exception as e :
@@ -108,6 +113,8 @@ def add_advertisement(request):
     return Response(data)
 
 
+
+############################ Old ##################################
 @api_view(('POST',))
 def create_advertisement(request):
     """
@@ -125,7 +132,6 @@ def create_advertisement(request):
         url = request.data.get('url')
         start_date = request.data.get('start_date')
         end_date = request.data.get('end_date')
-        
         
         start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%m/%d/%Y').strftime('%Y-%m-%d')
@@ -173,7 +179,6 @@ def create_advertisement(request):
                     customer=stripe_customer_id,
                     line_items=[
                         {
-                            # Provide the exact Price ID (for example, pr_1234) of the product you want to sell
                             'price': price["id"],
                             'quantity': 1,
                         },
@@ -222,9 +227,7 @@ def payment_for_advertisement(request,charge_for,my_data,checkout_session_id):
                 context["charge_for"] = get_same_payment.payment_for
                 context["expires_time"] = get_same_payment.expires_at
                 return render(request,"success_payment.html",context)
-
-            else:
-                
+            else:                
                 context["charge_for"] = get_same_payment.payment_for
                 return render(request,"failed_payment.html",context)
         if not check_same_payment.exists(): 
@@ -256,6 +259,140 @@ def payment_for_advertisement(request,charge_for,my_data,checkout_session_id):
     except:
         return render(request,"failed_payment.html")
 
+###################################### Old ####################################
+###################################### New ####################################
+@api_view(('GET',))
+def advertisement_rate_list(request):
+    """
+    Fetches the list of advertisement rates per duration.    
+    """
+    data = {'status':'', 'message':''}
+    try:        
+        user_uuid = request.GET.get('user_uuid')
+        user_secret_key = request.GET.get('user_secret_key')
+        
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response(
+                {"status": status.HTTP_401_UNAUTHORIZED, "message": "Unauthorized access", "data": []}
+            )
+        
+        rate_list = AdvertisementDurationRate.objects.all().values()
+        data["status"] = status.HTTP_200_OK
+        data["message"] = "Rates fetched successfully."
+        data["data"] = rate_list
+
+        return Response(data)
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+        return Response(data)
+    
+@api_view(('POST',))
+def advertisement_add(request):
+    """
+    Creates an advertisement and charges fees for creating it.    
+    """
+    data = {'status':'', 'message':''}
+    try:        
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+
+        advertisement_name = request.data.get('advertisement_name')
+        description = request.data.get('description')
+        image = request.FILES.get('image')
+        script_text = request.data.get('script_text')
+        url = request.data.get('url')
+        start_date = request.data.get('start_date')
+        rate_id = request.data.get('rate_id')
+        company_name = request.data.get('company_name')
+        company_website = request.data.get('company_website')        
+        
+        start_date = datetime.strptime(start_date, '%m/%d/%Y').strftime('%Y-%m-%d')       
+        
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response(
+                {"status": status.HTTP_401_UNAUTHORIZED, "message": "Unauthorized access", "data": []}
+            )
+        get_user = check_user.first()    
+
+        check_wallet = Wallet.objects.filter(user=get_user)
+        if not check_wallet.exists():
+            return Response(
+                {"status": status.HTTP_404_NOT_FOUND, "message": "No wallet found.", "data": []}
+            )
+        
+        get_wallet = check_wallet.first()
+        balance = get_wallet.balance
+        duration_instance = AdvertisementDurationRate.objects.filter(id=int(rate_id)).first()
+        rate = duration_instance.rate
+        if float(balance) >= float(rate):
+            obj = GenerateKey()
+            advertisement_key = obj.gen_advertisement_key()
+            ad = Advertisement.objects.create(
+                    secret_key=advertisement_key,
+                    name=advertisement_name,
+                    image=image,
+                    url=url,
+                    created_by_id=get_user.id,
+                    description=description,
+                    script_text=script_text,
+                    start_date=start_date,
+                    company_name=company_name,
+                    company_website=company_website,
+                    duration=duration_instance)
+            
+            WalletTransaction.objects.create(
+                sender = get_user,
+                reciver = None,                        
+                admin_cost=Decimal(rate),
+                getway_charge = 0,                        
+                transaction_for="Advertisement",                                   
+                transaction_type="debit",
+                amount=Decimal(rate),
+                payment_id=None, 
+                description=f"${rate} is debited from your PickleIt wallet for creating advertisement."
+                )
+            balance = float(balance) - float(rate)
+            get_wallet.balance = Decimal(balance)
+            get_wallet.save()
+
+            admin_wallet = Wallet.objects.filter(user__is_superuser=True).first()
+            admin_balance = float(admin_wallet.balance) + float(rate)
+            admin_wallet.balance = Decimal(admin_balance)
+            admin_wallet.save()
+            
+            # admin_wallet = AdminWallet.objects.first()
+            # stripe_fee = (float(rate) * 0.029) + 0.30
+            # final_amount = float(rate) - float(stripe_fee)
+
+            # AdminWalletTransaction.objects.create(
+            #     wallet=admin_wallet,
+            #     transaction_type="credit",
+            #     amount=Decimal(final_amount),
+            #     payment_id=None,  
+            #     description=f"${final_amount} is credited to admin wallet for creating new advertisement {ad.name}."
+            # )
+
+            # send notification to admin
+            admin_users = User.objects.filter(is_admin=True).values_list('id', flat=True)
+            title = "New Advertisement created."
+            message = f"{get_user.first_name} {get_user.last_name} has created an advertisement named {ad.name}. Please review this."
+            for user_id in admin_users:
+                notify_edited_player(user_id, title, message)
+            
+            data['status'] = status.HTTP_200_OK
+            data["message"] = f"You have successfully created the advertisement {ad.name} and ${rate} has been deducted from your wallet for this."
+        
+        else:
+            remaining_amount = float(rate) - float(balance)
+            data['status'] = status.HTTP_200_OK
+            data["message"] = f"Please add ${remaining_amount} to your wallet to creating the advertisement."             
+
+    except Exception as e :
+        data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
+    return Response(data)
+
 
 @api_view(('GET',))
 def view_advertisement(request):
@@ -272,19 +409,17 @@ def view_advertisement(request):
         base_url = f"{protocol}://{host}{settings.MEDIA_URL}"
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
         check_ad = Advertisement.objects.filter(uuid=ad_uuid,secret_key=ad_secret_key)
-        if check_user.exists() and check_ad.exists():
-            get_user = check_user.first()
-            if get_user.is_admin or get_user.is_sponsor or get_user.is_organizer:
-                ad_data = Advertisement.objects.filter(id=check_ad.first().id).values("id","uuid","secret_key","name","image","script_text"
-                                                                                            ,"url","approved_by_admin","description","start_date",
-                                                                                            "end_date","created_by__first_name","created_by__last_name")
-                if ad_data[0]["image"] != "":
-                    ad_data[0]["image"] = base_url + ad_data[0]["image"]
-                data["status"], data["data"], data["message"] = status.HTTP_200_OK, ad_data,"data found"
-            else:
-                data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","You are not a Sponsor"
+        if check_user.exists() and check_ad.exists():            
+            
+            ad_data = Advertisement.objects.filter(id=check_ad.first().id).values("id","uuid","secret_key","name","image","script_text"
+                                                                                        ,"url","approved_by_admin","description","start_date",
+                                                                                        "end_date","created_by__first_name","created_by__last_name")
+            if ad_data[0]["image"] != "":
+                ad_data[0]["image"] = base_url + ad_data[0]["image"]
+            data["status"], data["data"], data["message"] = status.HTTP_200_OK, ad_data,"data found"
+            
         else:
-            data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found"
+            data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User or Advertisement not found"
     except Exception as e :
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
@@ -304,17 +439,31 @@ def list_advertisement(request):
         base_url = f"{protocol}://{host}{settings.MEDIA_URL}"
         if check_user.exists():
             get_user = check_user.first()
-            if get_user.is_admin:
-                all_add = Advertisement.objects.all().order_by("name").values()
-                for ad in all_add:
-                    ad['image'] = base_url + ad['image']
-                data["status"], data["data"], data["message"] = status.HTTP_200_OK, all_add,"Data Found"
+            
+            all_add = Advertisement.objects.filter(created_by=get_user).order_by("name").values("id","uuid","secret_key","name","image","script_text"
+                                                                                        ,"url","approved_by_admin","description","start_date","end_date","created_by__first_name","created_by__last_name")
+            for ad in all_add:
+                ad['image'] = base_url + ad['image']
+
+            paginator = PageNumberPagination()
+            paginator.page_size = 10  
+            result_page = paginator.paginate_queryset(all_add, request)
+            if not result_page:
+                data["status"] = status.HTTP_200_OK
+                data["count"] = 0
+                data["previous"] = None
+                data["next"] = None
+                data["data"] = []
+                data["message"] = "No Result found"
             else:
-                all_add = Advertisement.objects.filter(created_by=get_user).order_by("name").values("id","uuid","secret_key","name","image","script_text"
-                                                                                            ,"url","approved_by_admin","description","start_date","end_date","created_by__first_name","created_by__last_name")
-                for ad in all_add:
-                    ad['image'] = base_url + ad['image']
-                data["status"], data["data"], data["message"] = status.HTTP_200_OK, all_add,"Data Found"
+                paginated_response = paginator.get_paginated_response(result_page)
+                data["status"] = status.HTTP_200_OK
+                data["count"] = paginated_response.data["count"]
+                data["previous"] = paginated_response.data["previous"]
+                data["next"] = paginated_response.data["next"]
+                data["data"] = paginated_response.data["results"]
+                data["message"] = "Data found"
+                # data["status"], data["data"], data["message"] = status.HTTP_200_OK, all_add,"Data Found"
         else:
             data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found"
     except Exception as e :
@@ -388,8 +537,11 @@ def advertisement_approved_by_admin(request):
             if get_user.is_admin and check_advertisement.exists() :
                 get_advertisement = check_advertisement.first()
                 advertisement_status = True if advertisement_status == "True" else False
+                approve_status = "Approved" if advertisement_status == "True" else "Rejected"
                 get_advertisement.approved_by_admin = advertisement_status
+                get_advertisement.admin_approve_status = approve_status
                 get_advertisement.save()
+                
                 data["status"], data["data"], data["message"] = status.HTTP_200_OK, "",f"{get_advertisement.name} is updated successfully"
             else:
                 data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User is not admin or Advertisement is undefined"

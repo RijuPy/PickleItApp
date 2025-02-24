@@ -16,7 +16,14 @@
                 <h4 class="page-title">Advertisements</h4>
                 <div class="ml-auto text-right">
                     <nav aria-label="breadcrumb">
-                        
+                        <form method="GET">
+                            <select name="filter_type" onchange="this.form.submit()">
+                                <option value="">All</option>
+                                <option value="pending_requests" {% if request.GET.filter_type == "pending_requests" %}selected{% endif %}>Pending</option>
+                                <option value="rejected_requests" {% if request.GET.filter_type == "rejected_requests" %}selected{% endif %}>Rejected</option>
+                                <option value="approved_requests" {% if request.GET.filter_type == "approved_requests" %}selected{% endif %}>Approved</option>
+                            </select>
+                        </form>                        
                     </nav>
                 </div>
             </div>
@@ -30,6 +37,7 @@
                     <table id="zero_config" class="table table-striped table-bordered">
                         <thead>
                         <tr>
+                            <th class="h5 font-weight-bold text-center">Image</th>
                             <th class="h5 font-weight-bold text-center">Name</th>
                             <th class="h5 font-weight-bold text-center">url</th>
                             <th class="h5 font-weight-bold text-center">Start date</th>
@@ -44,7 +52,8 @@
                         <tbody>
                             {% for ad in advertisements %}
                         <tr>
-                            <td>{{ad.name}}</td>
+                            <td><img src="/media/{{ ad.image }}" class="img-fluid" width="200" alt="Advertisement Image"></td>
+                            <td >{{ad.name}}</td>
                             <td><a href="{{ad.url}}">{{ad.url}}</a></td>
                             <td>{{ad.start_date}}</td>
                             <td>{{ad.end_date}}</td>
