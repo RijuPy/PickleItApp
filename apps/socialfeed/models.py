@@ -1,7 +1,7 @@
 from django.db import models
 from apps.user.models import User
 
-class SocalFeed(models.Model):
+class socialFeed(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="post_user")
     text = models.TextField()
     block = models.BooleanField(default=False)
@@ -24,11 +24,11 @@ class SocalFeed(models.Model):
         self.save()
 
 class FeedFile(models.Model):
-    post = models.ForeignKey(SocalFeed, on_delete=models.CASCADE, related_name="post_file")
-    file = models.FileField(upload_to="socal_feed/", blank=True, null=True)
+    post = models.ForeignKey(socialFeed, on_delete=models.CASCADE, related_name="post_file")
+    file = models.FileField(upload_to="social_feed/", blank=True, null=True)
 
 class CommentFeed(models.Model):
-    post = models.ForeignKey(SocalFeed, on_delete=models.CASCADE, related_name="post_comment")
+    post = models.ForeignKey(socialFeed, on_delete=models.CASCADE, related_name="post_comment")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="comment_user")
     comment_text = models.TextField()
     parent_comment = models.ForeignKey("CommentFeed", on_delete=models.CASCADE, null=True, blank=True)
@@ -39,7 +39,7 @@ class CommentFeed(models.Model):
         self.post.update_comment_count()
 
 class LikeFeed(models.Model):
-    post = models.ForeignKey(SocalFeed, on_delete=models.CASCADE, related_name="post_like")
+    post = models.ForeignKey(socialFeed, on_delete=models.CASCADE, related_name="post_like")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="like_user")
     created_at = models.DateTimeField(auto_now_add=True)
 

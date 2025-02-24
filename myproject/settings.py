@@ -71,7 +71,7 @@ INSTALLED_APPS = [
     'apps.team',
     'apps.pickleitcollection',
     'apps.chat',
-    'apps.socalfeed',
+    'apps.socialfeed',
     'apps.admin_side',
     'apps.store',
     'apps.courts',

@@ -9,7 +9,7 @@ import random
 from math import radians, sin, cos, sqrt, atan2
 from .models import *
 from .serializers import *
-###socal feed
+###social feed
 
 class SocialFeedPagination(PageNumberPagination):
     page_size = 2  # Default items per page
@@ -29,10 +29,10 @@ def my_social_feed(request):
     check_user = User.objects.filter(uuid=user_uuid)
     if check_user.exists():
         get_user = check_user.first()
-        feeds = SocalFeed.objects.filter(user=get_user).order_by('-created_at')
+        feeds = socialFeed.objects.filter(user=get_user).order_by('-created_at')
         
         # Shuffle the data
-        serializer = MySocalFeedSerializer(feeds, many=True)
+        serializer = MysocialFeedSerializer(feeds, many=True)
         data = serializer.data
         random.shuffle(data)
 
@@ -47,10 +47,10 @@ def my_social_feed(request):
 
 @api_view(['GET'])
 def social_feed_list(request):
-    feeds = SocalFeed.objects.all().order_by('-created_at')
+    feeds = socialFeed.objects.all().order_by('-created_at')
     
     # Shuffle the data
-    serializer = SocalFeedSerializer(feeds, many=True)
+    serializer = socialFeedSerializer(feeds, many=True)
     data = serializer.data
     random.shuffle(data)
 
@@ -62,8 +62,8 @@ def social_feed_list(request):
 
 @api_view(['GET'])
 def social_feed_detail(request, pk):
-    feed = get_object_or_404(SocalFeed, pk=pk)
-    serializer = SocalFeedDetailsSerializer(feed)
+    feed = get_object_or_404(socialFeed, pk=pk)
+    serializer = socialFeedDetailsSerializer(feed)
     return Response(serializer.data)
 
 @api_view(['POST'])
@@ -84,7 +84,7 @@ def post_social_feed(request):
         text = data.get("text")
         post_files = request.FILES.getlist("post_files")
 
-        feed = SocalFeed(text=text, user=get_user)
+        feed = socialFeed(text=text, user=get_user)
         feed.save()
 
         for post_file in post_files:
@@ -117,7 +117,7 @@ def post_comment(request):
         return Response({"msg": "Unauthorized access", "status": status.HTTP_400_BAD_REQUEST})
 
     # Fetch post by ID
-    post = SocalFeed.objects.filter(id=post_id).first()
+    post = socialFeed.objects.filter(id=post_id).first()
     if not post:
         return Response({"msg": "This is not a valid post", "status": status.HTTP_400_BAD_REQUEST})
 
@@ -148,7 +148,7 @@ def post_like(request):
             return Response({"msg": "Unauthorized access", "status": status.HTTP_400_BAD_REQUEST})
 
         # Validate post
-        post = SocalFeed.objects.filter(id=post_id).first()
+        post = socialFeed.objects.filter(id=post_id).first()
         if not post:
             return Response({"msg": "This is not a valid post", "status": status.HTTP_400_BAD_REQUEST})
 
@@ -170,14 +170,14 @@ def post_like(request):
 
 @api_view(['GET'])
 def like_user_list(request, pk):
-    post = get_object_or_404(SocalFeed, pk=pk)
+    post = get_object_or_404(socialFeed, pk=pk)
     likes = LikeFeed.objects.filter(post=post)
     serializer = LikeFeedSerializer(likes, many=True)
     return Response(serializer.data)
 
 @api_view(['GET'])
 def comment_list(request, pk):
-    post = get_object_or_404(SocalFeed, pk=pk)
+    post = get_object_or_404(socialFeed, pk=pk)
     comments = CommentFeed.objects.filter(post=post)
     serializer = CommentFeedSerializer(comments, many=True)
     return Response(serializer.data)

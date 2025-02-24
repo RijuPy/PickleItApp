@@ -158,8 +158,8 @@ def store_product_add(request):
         data["status"] = status.HTTP_404_NOT_FOUND
         data["message"] = "User not found"
         return Response(data)
-
-    if not (check_user.is_admin or check_user.is_organizer):
+    #change
+    if check_user:
         data["status"] = status.HTTP_403_FORBIDDEN
         data["message"] = "User is not Admin or Organizer"
         return Response(data)
@@ -347,16 +347,14 @@ def store_product_delete(request):
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
         if check_user.exists() :
             get_user = check_user.first()
-            check_product = MerchandiseStoreProduct.objects.filter(id=product_id)
-            if get_user.is_admin or get_user.is_organizer:
-                if not check_product.exists():
-                    data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","Product is not found"
-                    return Response(data) 
-                else:
-                    check_product.delete()
-                    data["status"], data["message"] = status.HTTP_200_OK, "Product deleted successfully"
+            check_product = MerchandiseStoreProduct.objects.filter(id=product_id, created_by=get_user)
+            # chhange
+            if not check_product.exists():
+                data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","Product is not found"
+                return Response(data) 
             else:
-                data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User is not Admin or Organizer"
+                check_product.delete()
+                data["status"], data["message"] = status.HTTP_200_OK, "Product deleted successfully"
         else:
             data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found"
     except Exception as e :
@@ -499,28 +497,27 @@ def store_product_edit(request):
         product_size = json.loads(product_size)
         
         check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        # change
         if check_user.exists() :
             get_user = check_user.first()
             check_category = MerchandiseStoreCategory.objects.filter(id=category_id)
-            check_product = MerchandiseStoreProduct.objects.filter(id=product_id)
-            if get_user.is_admin or get_user.is_organizer:
-                if not check_product.exists() or not check_category.exists() or not product_name or not product_price :
-                    data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","Category name or Product Name or Product Price is undefined"
-                    return Response(data) 
-                else:
-                    get_product = check_product.first()
-                    get_product.category_id = category_id
-                    get_product.name = product_name
-                    get_product.description = product_description
-                    get_product.specifications = product_specifications
-                    get_product.price = product_price
-                    get_product.image = product_image
-                    get_product.size = product_size
-                    get_product.save()
-                    
-                    data["status"], data["data"], data["message"] = status.HTTP_200_OK, "",f"{product_name} updated successfully"
+            check_product = MerchandiseStoreProduct.objects.filter(id=product_id, created_by=get_user)
+            
+            if not check_product.exists() or not check_category.exists() or not product_name or not product_price :
+                data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","Category name or Product Name or Product Price is undefined"
+                return Response(data) 
             else:
-                data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User is not Admin or Organizer"
+                get_product = check_product.first()
+                get_product.category_id = category_id
+                get_product.name = product_name
+                get_product.description = product_description
+                get_product.specifications = product_specifications
+                get_product.price = product_price
+                get_product.image = product_image
+                get_product.size = product_size
+                get_product.save()
+                
+                data["status"], data["data"], data["message"] = status.HTTP_200_OK, "",f"{product_name} updated successfully"
         else:
             data["status"], data["data"], data["message"] = status.HTTP_404_NOT_FOUND, "","User not found"
     except Exception as e :

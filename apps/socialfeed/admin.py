@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import SocalFeed, FeedFile, CommentFeed, LikeFeed
+from .models import socialFeed, FeedFile, CommentFeed, LikeFeed
 
 class FeedFileInline(admin.TabularInline):
     model = FeedFile
@@ -17,8 +17,8 @@ class LikeFeedInline(admin.TabularInline):
     fields = ("user", "created_at")
     readonly_fields = ("created_at",)
 
-@admin.register(SocalFeed)
-class SocalFeedAdmin(admin.ModelAdmin):
+@admin.register(socialFeed)
+class socialFeedAdmin(admin.ModelAdmin):
     list_display = ("user", "text", "number_comment", "number_like", "created_at")
     search_fields = ("user__username", "text")
     readonly_fields = ("number_comment", "number_like", "created_at")

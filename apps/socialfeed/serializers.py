@@ -20,19 +20,19 @@ class LikeFeedSerializer(serializers.ModelSerializer):
         model = LikeFeed
         fields = ['id', 'post', 'user', 'created_at']
 
-class SocalFeedSerializer(serializers.ModelSerializer):
+class socialFeedSerializer(serializers.ModelSerializer):
     post_file = FeedFileSerializer(many=True, read_only=True)
 
     class Meta:
-        model = SocalFeed
+        model = socialFeed
         fields = ['id', 'user', 'text', 'number_comment', 'number_like', 'created_at', 'post_file']
 
 
-class MySocalFeedSerializer(serializers.ModelSerializer):
+class MysocialFeedSerializer(serializers.ModelSerializer):
     post_file = FeedFileSerializer(many=True, read_only=True)
 
     class Meta:
-        model = SocalFeed
+        model = socialFeed
         fields = ["id", "user", "text", "block", "block_by", "about_block", "number_comment", "number_like", "created_at", "post_file"]
 
     def to_representation(self, instance):
@@ -42,13 +42,13 @@ class MySocalFeedSerializer(serializers.ModelSerializer):
             data["about_block"] = None
         return data
 
-class SocalFeedDetailsSerializer(serializers.ModelSerializer):
+class socialFeedDetailsSerializer(serializers.ModelSerializer):
     post_file = FeedFileSerializer(many=True, read_only=True)
     comments = CommentFeedSerializer(many=True, read_only=True, source="post_comment")
     likes = LikeFeedSerializer(many=True, read_only=True, source="post_like")
 
     class Meta:
-        model = SocalFeed
+        model = socialFeed
         fields = [
             'id',
             'user',
