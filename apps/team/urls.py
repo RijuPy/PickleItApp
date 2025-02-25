@@ -1,5 +1,5 @@
+# from apps.team import views
 from django.urls import path
-from apps.team import views
 from apps.team.view.unuseview import *
 from apps.team.view.playerview import *
 from apps.team.view.teamview import *
