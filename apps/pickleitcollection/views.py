@@ -12,7 +12,7 @@ from apps.store.serializers import *
 from apps.pickleitcollection.models import *
 from apps.pickleitcollection.serializers import *
 from apps.store.models import *
-from apps.team.views import notify_edited_player
+from apps.team.helper import notify_edited_player
 
 from django.conf import settings
 from django.core.cache import cache

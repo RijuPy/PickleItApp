@@ -62,7 +62,7 @@ class MerchandiseStoreProductSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = MerchandiseStoreProduct
-        fields = ['id','uuid','secret_key','name','description','specifications','rating','rating_count','advertisement_image','is_love','category__name','created_by__first_name','created_by__last_name','productImages','specificProduct','ratedProduct','leagues_for']
+        fields = ['id','uuid','secret_key','name','store_name','description','specifications','rating','rating_count','advertisement_image','is_love','category__name','created_by__first_name','created_by__last_name','productImages','specificProduct','ratedProduct','leagues_for']
 
     def get_leagues_for(self, obj):
         return obj.get_leagues_names()
@@ -85,7 +85,7 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MerchandiseStoreProduct
-        fields = ['id','uuid','secret_key','category__name','name','price','description','specifications','rating','rating_count','advertisement_image','image','is_love','created_by__first_name','created_by__last_name']
+        fields = ['id','uuid','secret_key','category__name','name','store_name','price','description','specifications','rating','rating_count','advertisement_image','image','is_love','created_by__first_name','created_by__last_name']
     
     def to_representation(self, instance):
         # Update rating before serialization

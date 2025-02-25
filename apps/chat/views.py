@@ -1,18 +1,15 @@
 from datetime import datetime
-
 from apps.chat.models import *
 from apps.user.helpers import *
 from apps.team.models import *
 from apps.pickleitcollection.models import *
-
 from django.shortcuts import render, HttpResponse
 from django.db.models import Q, Count, Exists, OuterRef
-
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status, serializers
 from rest_framework.pagination import PageNumberPagination
-
+from apps.team.helper import notify_edited_player
 
 class LastMessageSerializer(serializers.ModelSerializer):
     room_name = serializers.CharField(source='room.name')
@@ -97,114 +94,6 @@ def chat_user_details(request):
         data['status'] = status.HTTP_400_BAD_REQUEST
         data['message'] = str(e)
     return Response(data)
-
-
-# @api_view(('GET',))
-# def chat_list(request):
-#     data = {'status': '', 'data': [], 'message': ''}
-#     try:
-#         user_uuid = request.GET.get('user_uuid')
-#         user_secret_key = request.GET.get('user_secret_key')
-#         search_text = request.GET.get('search_text')
-#         param_value = request.query_params.get('param_name')
-        
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         if check_user.exists():
-#             get_user = check_user.first()
-#             all_users = User.objects.all().values("id","uuid","secret_key","username","email","first_name","last_name","phone","user_birthday","image","gender","street","city","state","country","postal_code","is_player","is_organizer","is_sponsor","is_ambassador","is_admin")
-#             if not param_value:
-#                 if not search_text:
-#                     all_users = all_users
-#                 else:
-#                     all_users = all_users.filter(Q(first_name__icontains=search_text) | Q(last_name__icontains=search_text))
-#             else:
-#                 if param_value.lower() == "player":
-#                     if not search_text:
-#                         all_users = all_users.filter(is_player=True)
-#                     else:
-#                         all_users = all_users.filter(Q(first_name__icontains=search_text, is_player=True) | Q(last_name__icontains=search_text, is_player=True))
-#                 if param_value.lower() == "admin":
-#                     if not search_text:
-#                         all_users = all_users.filter(is_admin=True)
-#                     else:
-#                         all_users = all_users.filter(Q(first_name__icontains=search_text, is_admin=True) | Q(last_name__icontains=search_text, is_admin=True))
-#                 if param_value.lower() == "organizer":
-#                     if not search_text:
-#                         all_users = all_users.filter(is_organizer=True)
-#                     else:
-#                         all_users = all_users.filter(Q(first_name__icontains=search_text, is_organizer=True) | Q(last_name__icontains=search_text, is_organizer=True))
-
-#                 if param_value.lower() == "sponsor":
-#                     if not search_text:
-#                         all_users = all_users.filter(is_sponsor=True)
-#                     else:
-#                         all_users = all_users.filter(Q(first_name__icontains=search_text, is_sponsor=True) | Q(last_name__icontains=search_text, is_sponsor=True))
-#                 if param_value.lower() == "ambassador":
-#                     if not search_text:
-#                         all_users = all_users.filter(is_ambassador=True)
-#                     else:
-#                         all_users = all_users.filter(Q(first_name__icontains=search_text, is_ambassador=True) | Q(last_name__icontains=search_text, is_ambassador=True))
-                
-#             for user_data in all_users:
-#                 user_id = user_data["id"]
-                
-#                 user_data["unread"] = 0               
-#                 get_user2 = User.objects.filter(id=user_id).first()
-#                 room_user_one = Room.objects.filter(user_one=get_user, user_two=get_user2)
-#                 room_user_two = Room.objects.filter(user_one=get_user2, user_two=get_user)
-#                 if room_user_one.exists():
-#                     get_room=room_user_one.first()
-#                     message = MessageBox.objects.filter(room=get_room)
-#                     if message.exists():
-#                         get_last_msg = message.last()
-#                         user_data["last_message"] = get_last_msg.text_message
-#                         user_data["unread"] = MessageBox.objects.filter(sender_user__id=user_data["id"],reciver_user__id=get_user.id, is_read=False).count()
-#                         serializer = LastMessageSerializer(get_last_msg)                
-#                         user_data["last_message_data"] = serializer.data                                               
-#                         user_data["time"] = serializer.data["time"]
-                        
-#                     else:
-#                         user_data["last_message"] = "No message Yet!"
-#                         user_data["time"] = None
-#                 elif room_user_two.exists():
-#                     get_room=room_user_two.first()
-#                     message = MessageBox.objects.filter(room=get_room)
-#                     if message.exists():
-#                         get_last_msg = message.last()
-#                         user_data["unread"] = MessageBox.objects.filter(sender_user__id=user_data["id"],reciver_user__id=get_user.id, is_read=False).count()
-#                         user_data["last_message"] = get_last_msg.text_message
-                        
-#                         user_data["time"] = get_last_msg.created_at
-                       
-#                     else:
-#                         user_data["last_message"] = "No message Yet!"
-#                         user_data["time"] = None
-#                 else:
-#                     user_data["last_message"] = "No message Yet!"
-#                     user_data["time"] = None
-#             users_with_message = []
-#             users_without_message = []
-#             for user_data in all_users:
-#                 if user_data["time"] is not None:
-#                     users_with_message.append(user_data)
-#                 else:
-#                     users_without_message.append(user_data)
-
-#             sorted_users_with_message = sorted(users_with_message, key=lambda user_data: user_data["time"], reverse=True) 
-#             all_users = sorted_users_with_message + users_without_message
-            
-#             data["status"] = status.HTTP_200_OK
-#             data["data"] = list(all_users)
-#             data["message"] = "Data found"
-
-#         else:
-#             data['status'] = status.HTTP_401_UNAUTHORIZED
-#             data['message'] = "Unauthorized access"
-
-#     except Exception as e:
-#         data['status'] = status.HTTP_400_BAD_REQUEST
-#         data['message'] = str(e)
-#     return Response(data)
 
 
 @api_view(('GET',))
@@ -538,133 +427,6 @@ def unread_chat_users(request):
         data['message'] = str(e)
     return Response(data)
 
-
-# @api_view(['POST'])
-# def block_or_unblock_chat_user(request):
-#     data = {'status': '', 'message': ''}
-
-#     try:
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key')
-#         block_user_uuid = request.data.get('block_user_uuid')
-#         block_user_secret_key = request.data.get('block_user_secret_key')
-#         status_field = request.data.get('status')
-
-#         if status_field is None:
-#             return Response({"status": status.HTTP_400_BAD_REQUEST, "message": "Status field is required"})
-
-#         # Convert status to boolean
-#         status_true = str(status_field).lower() in ['true', '1']
-
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         check_block_user = User.objects.filter(uuid=block_user_uuid, secret_key=block_user_secret_key)
-#         if not check_user.exists() or not check_block_user.exists():
-#             return Response({"status": status.HTTP_401_UNAUTHORIZED, "message": "Unauthorized access"})
-
-#         get_user, get_block_user = check_user.first(), check_block_user.first()
-
-#         # Check if room exists
-#         get_room = Room.objects.filter(
-#             Q(user_one=get_user, user_two=get_block_user) | 
-#             Q(user_one=get_block_user, user_two=get_user)
-#         ).first()
-
-#         # Create room if it doesn't exist
-#         if not get_room:
-#             get_room = Room.objects.create(name=f"{get_user.id}{get_block_user.id}", user_one=get_user, user_two=get_block_user)
-
-#         # Update block status
-#         if get_room.user_one == get_user:
-#             get_room.is_blocked_user_two = status_true
-#         else:
-#             get_room.is_blocked_user_one = status_true
-
-#         get_room.save()
-
-#         data["status"] = status.HTTP_200_OK
-#         data["message"] = "User blocked successfully" if status_true else "User unblocked successfully"
-
-#     except Exception as e:
-#         data["status"], data["message"] = status.HTTP_400_BAD_REQUEST, str(e)
-
-#     return Response(data)
-
-
-# @api_view(('POST',))
-# def continue_chat_with_user(request):
-#     data = {'status': '', 'message': ''}
-#     try:        
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key') 
-#         chat_user_uuid = request.data.get('chat_user_uuid')
-#         chat_user_secret_key = request.data.get('chat_user_secret_key')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         check_chat_user = User.objects.filter(uuid=chat_user_uuid, secret_key=chat_user_secret_key)
-#         if check_user.exists() and check_chat_user.exists():
-#             get_user = check_user.first()
-#             get_chat_user = check_chat_user.first()
-#             check_room = Room.objects.filter(Q(user_one=get_user, user_two=get_chat_user) | Q(user_one=get_chat_user, user_two=get_user))
-#             if check_room.exists():
-#                 get_room = check_room.first()
-#             else:
-#                 get_room = Room.objects.create(name=f"{get_user.id}{get_chat_user.id}", user_one=get_user, user_two=get_chat_user)
-#             u1 = get_room.user_one
-#             u2 = get_room.user_two
-#             data["status"] = status.HTTP_200_OK
-#             data["data"] = {"room_id": get_room.id,
-#                             "room_name": get_room.name,
-#                             "user_one": f"{u1.first_name} {u1.last_name}",
-#                             "user_two": f"{u2.first_name} {u2.last_name}"
-#                             }
-#             data["message"] = "You can continue chatting with this user."
-#         else:
-#             data["status"] = status.HTTP_401_UNAUTHORIZED
-#             data["message"] = "User not found."
-
-#     except Exception as e:
-#         data['status'] = status.HTTP_400_BAD_REQUEST
-#         data['message'] = str(e)
-#     return Response(data)
-
-
-# @api_view(('POST',))
-# def report_chat_user(request):
-#     data = {'status': '', 'message': ''}
-#     try:        
-#         user_uuid = request.data.get('user_uuid')
-#         user_secret_key = request.data.get('user_secret_key') 
-#         report_user_uuid = request.data.get('report_user_uuid')
-#         report_user_secret_key = request.data.get('report_user_secret_key')
-#         check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
-#         check_report_user = User.objects.filter(uuid=report_user_uuid, secret_key=report_user_secret_key)
-#         if check_user.exists() and check_report_user.exists():
-#             get_user = check_user.first()
-#             get_report_user = check_report_user.first()
-#             check_room = Room.objects.filter(Q(user_one=get_user, user_two=get_report_user) | Q(user_one=get_report_user, user_two=get_user))
-#             if check_room.exists():
-#                 get_room = check_room.first()
-#             else:
-#                 get_room = Room.objects.create(name=f"{get_user.id}{get_report_user.id}", user_one=get_user, user_two=get_report_user)
-#             u1 = get_room.user_one
-#             u2 = get_room.user_two 
-#             if u1 == get_user:
-#                 get_room.is_blocked_user_two = True
-#                 get_room.save()
-#             if u2 == get_user:
-#                 get_room.is_blocked_user_one = True
-#                 get_room.save()
-#             data["status"] = status.HTTP_200_OK
-#             data["message"] = "User reported and blocked successfully."
-#         else:
-#             data["status"] = status.HTTP_401_UNAUTHORIZED
-#             data["message"] = "User not found."
-
-#     except Exception as e:
-#         data['status'] = status.HTTP_400_BAD_REQUEST
-#         data['message'] = str(e)
-#     return Response(data)
-
-
 @api_view(['POST'])
 def block_or_unblock_chat_user(request):
     data = {'status': '', 'message': ''}
@@ -756,7 +518,7 @@ def continue_chat_with_user(request):
     return Response(data)
 
 
-from apps.team.views import notify_edited_player
+
 @api_view(('POST',))
 def report_chat_user(request):
     data = {'status': '', 'message': ''}

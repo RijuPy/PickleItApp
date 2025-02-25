@@ -11,7 +11,7 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login as auth_login
 from django.contrib.auth import logout
-from apps.team.views import notify_edited_player, check_add_player
+from apps.team.helper import notify_edited_player, check_add_player
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.views.decorators.csrf import csrf_exempt

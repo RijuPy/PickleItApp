@@ -52,5 +52,9 @@ urlpatterns = [
     path('a7bbbfd6a3d114eaa54da65db2034f637a18cb8dd7a2afeea14e60378a208e1b/', views.top_rated_products, name="top_rated_products"),
     path('ff29075325860ec97d0d436fdc9e88f54392759453980d9983a5aea8d8a965dc/', views.most_searched_products, name="most_searched_products"),
     path('840f06c0f81edcfc56e3c78e043d5235a2f11cb45f2ec3facfa4570f946ba729/', views.top_discount_product_ad_images, name='top_discount_product_ad_images'),
+
+    # new
+    path('7028624789da497f139feb74bd35061e0d9b00f913755c3f5b055ed3a28bb553/', views.buy_cart_products, name='buy_cart_products'),
+    path('92245b5b7835a18b23fb32ead13e94978831e67d8f4c50f0a50f0014d8ce54d9/', views.buy_now, name='buy_now'),
     
 ]

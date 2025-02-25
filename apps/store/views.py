@@ -7,7 +7,7 @@ from apps.user.helpers import *
 from apps.store.models import *
 from apps.store.serializers import *
 from apps.pickleitcollection.models import *
-
+from apps.team.helper import notify_edited_player
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Q, Sum, F, Min, Max
@@ -144,6 +144,7 @@ def store_product_add(request):
     user_secret_key = request.data.get('user_secret_key')
     category_id = request.data.get('category_id')
     product_name = request.data.get('product_name')
+    store_name = request.data.get('store_name')
     leagues_for_id = request.data.getlist('leagues_for_id')
     product_description = request.data.get('product_description')
     product_specifications = request.data.get('product_specifications')
@@ -186,6 +187,9 @@ def store_product_add(request):
         advertisement_image=image
     )
 
+    if store_name not in ['null', None, ""]:
+        save_product.store_name = store_name
+        save_product.save()
     # Add specifications
     specifications_data = json.loads(request.data.get('specifications_data', '[]'))
     for spec_data in specifications_data:
@@ -445,7 +449,8 @@ def search_wise_product_filter(request):
             get_product = MerchandiseStoreProduct.objects.filter(
                 Q(category__name__icontains=search_name) | Q(name__icontains=search_name) |
                 Q(leagues_for__name__icontains=search_name) |Q(description__icontains=search_name) |
-                Q(specifications__icontains=search_name) | Q(rating__icontains=search_name)
+                Q(specifications__icontains=search_name) | Q(rating__icontains=search_name) |
+                Q(store_name__icontains=search_name)
                 ).order_by("name").distinct()
             for product in get_product:
                 search_log, created = ProductSearchLog.objects.get_or_create(product=product)
@@ -539,6 +544,7 @@ def store_product_edit_new(request, product_id):
         user_secret_key = request.data.get('user_secret_key')
         category_id = request.data.get('category_id')
         product_name = request.data.get('product_name')
+        store_name = request.data.get('store_name')
         leagues_for_id = request.data.getlist('leagues_for_id')
         product_description = request.data.get('product_description')
         product_specifications = request.data.get('product_specifications')
@@ -575,6 +581,7 @@ def store_product_edit_new(request, product_id):
             product.category = product.category
         # Update product details
         product.name = product_name if product_name else product.name
+        product.store_name = store_name if store_name else product.store_name
         product.description = product_description if product_description else product.description
         product.specifications = product_specifications if product_specifications else product.specifications
         product.advertisement_image = advertisement_image if advertisement_image else product.advertisement_image
@@ -992,7 +999,7 @@ def product_add_to_cart(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)  
 
-#### Old##########
+
 @api_view(('GET',))
 def cart_list(request):
     """
@@ -1035,7 +1042,6 @@ def cart_list(request):
     return Response(data)  
 
 
-###############Updated#################
 @api_view(("GET",))
 def cart_list_new(request):
     data = {'status':'', 'data':[], 'message':'', 'coupon_status': False}
@@ -1141,8 +1147,6 @@ def cart_delete(request):
     return Response(data)
 
 
-# ################ payement part start ################
-# directly buy the product
 @api_view(('POST',))
 def buy_now_product(request):
     """
@@ -1234,8 +1238,6 @@ def buy_now_product(request):
         data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
         return Response(data)
 
-
-# store buy product payment details store.
 def buy_now_product_payment(request,charge_for,cart_id,checkout_session_id):
     """
     Handles the payment part for directly buying any product.
@@ -1290,8 +1292,6 @@ def buy_now_product_payment(request,charge_for,cart_id,checkout_session_id):
     else: 
         return render(request,"success_payment_for_buy.html",context)
 
-
-#buy all cart product
 @api_view(('POST',))
 def buy_all_cart_product(request):
     """
@@ -1373,8 +1373,6 @@ def buy_all_cart_product(request):
 
     return Response({"stripe_url": checkout_session.url})
 
-
-#payment for buy all cart product details
 def buy_all_cart_product_payment(request,charge_for,checkout_session_id):
     """
     Handles the payment for buying all cart products.
@@ -1421,20 +1419,6 @@ def buy_all_cart_product_payment(request,charge_for,checkout_session_id):
         message = f"error .."
         return render(request,"failed_payment.html")
 
-
-#################################### payement part end #############################################
-   
-# class MerchandiseStoreProductBuySerializer(serializers.ModelSerializer):
-#     total_price = serializers.IntegerField(source='total_price', read_only=True)
-#     product_name = serializers.CharField(source='product.name', read_only=True)
-#     address = serializers.CharField(source='delivery_address_main.complete_address', read_only=True)
-    
-#     class Meta:
-#         model = CustomerMerchandiseStoreProductBuy
-#         exclude = ["id"]
-        # fields = ["id", "cart_idd", "product_name", "price_per_product", "quantity", "total_price", "status", "is_paid", "delivery_address", "created_at","address"]
-
-
 class MyOrderActive(APIView):
     def get(self, request, *args, **kwargs):
         data = {"status":"", "data":[], "message":""}
@@ -1459,7 +1443,6 @@ class MyOrderActive(APIView):
             data["data"] = []
             data["message"] = "User not found"
         return Response(data)
-
 
 class MyOrderCompleted(APIView):
     def get(self, request, *args, **kwargs):
@@ -1534,7 +1517,6 @@ def filtered_product_list(request):
         data['status'], data['message'] = status.HTTP_400_BAD_REQUEST, f"{e}"
     return Response(data)
 
-
 @api_view(['GET'])
 def category_details(request):
     data = {"status": "", "message": "", "data": []}
@@ -1584,7 +1566,6 @@ def category_details(request):
         data['message'] = str(e)
 
     return Response(data)
-
 
 @api_view(("GET",))
 def sorted_product_list(request):
@@ -1650,7 +1631,6 @@ def sorted_product_list(request):
         data['message'] = str(e)
     return Response(data)
      
-
 @api_view(("GET",))
 def top_discount_products(request):
     data = {"status": "", "message": "", "data": []}
@@ -1681,7 +1661,6 @@ def top_discount_products(request):
         data['message'] = str(e)
     return Response(data)
 
-
 @api_view(("GET",))
 def top_discount_product_ad_images(request):
     data = {"status": "", "message": "", "data": []}
@@ -1705,7 +1684,6 @@ def top_discount_product_ad_images(request):
         data["data"] = []
         data['message'] = str(e)
     return Response(data)
-
 
 @api_view(("GET",))
 def top_rated_products(request):
@@ -1769,3 +1747,258 @@ def most_searched_products(request):
     return Response(data)
 
     
+@api_view(('POST',))
+def buy_now(request):
+    """
+    Allows a user to directly buy any product from product list.
+    """
+    data = {"status": "", "message": ""}
+    try:        
+        delivery_address_main = None
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        check_user = User.objects.filter(uuid=user_uuid,secret_key=user_secret_key)
+        delivery_address_main = request.data.get('delivery_address_main_id')
+        product_id = request.data.get('product_id')
+        quantity = int(request.data.get('quantity'))
+        size = request.data.get('size')
+        coupon_code = request.data.get('coupon_code')
+        check_coupon = CouponCode.objects.filter(coupon_code=coupon_code, start_date__lte=datetime.now(), end_date__gte=datetime.now()).first()
+        product = MerchandiseStoreProduct.objects.filter(id=int(product_id)).first()
+        price = MerchandiseProductSpecification.objects.filter(product=product, size=size).first().current_price
+
+        if not check_user.exists():            
+            return Response({'message': 'User does not exist.', 'status': status.HTTP_404_NOT_FOUND})
+        
+        get_user = check_user.first()
+        
+        if delivery_address_main is None:
+            user_street = check_user.first().street
+            user_city = check_user.first().city
+            user_state = check_user.first().state
+            user_postal_code = check_user.first().postal_code
+            delivery_address = f"{user_street},{user_city},{user_state},{user_postal_code}"
+        else:
+            
+            delivery_address = ProductDeliveryAddress.objects.filter(id=delivery_address_main,created_by=get_user).first().complete_address
+        obj = GenerateKey ()
+        secret_key = obj.gen_payment_key()
+
+        if check_coupon and product in check_coupon.product.all():
+            unit_amount = (int(price)-(int(price)*int(check_coupon.percentage))/100)*int(quantity)
+        else:
+            unit_amount = int(quantity)*int(price)
+
+        add_buy = CustomerMerchandiseStoreProductBuy.objects.create(
+            secret_key = secret_key,            
+            product_id = product_id,
+            price_per_product = price,
+            quantity = quantity,
+            status = "BuyNow",
+            total_price = int(quantity)*int(price),
+            delivery_address_main_id = delivery_address_main,
+            delivery_address = delivery_address,
+            created_by = get_user,
+            size = size
+        )
+        
+        check_wallet = Wallet.objects.filter(user=get_user)
+        if not check_wallet.exists():
+            return Response(
+                {"status": status.HTTP_404_NOT_FOUND, "message": "No wallet found.", "data": []}
+            )
+        
+        get_wallet = check_wallet.first()
+        balance = get_wallet.balance
+        
+        if float(balance) >= float(unit_amount):
+            add_buy.is_paid=True
+            add_buy.status="ORDER PLACED"
+            add_buy.save()
+
+            merchandise_cost = (settings.ORGANIZER_PERCENTAGE * unit_amount) /100
+            admin_cost = (settings.ADMIN_PERCENTAGE * unit_amount) /100
+            print(merchandise_cost, admin_cost)
+            WalletTransaction.objects.create(
+                    sender = get_user,
+                    reciver = add_buy.product.created_by,
+                    reciver_cost = Decimal(merchandise_cost),
+                    amount = Decimal(unit_amount),
+                    admin_cost = Decimal(admin_cost),
+                    getway_charge = 0,
+                    transaction_type="debit",
+                    transaction_for="Store",
+                    payment_id=None,  
+                    description=f"${unit_amount} is debited from your PickleIt wallet for {add_buy.product.name} purchase."
+                    )
+            get_wallet.balance = Decimal(float(get_wallet.balance) - float(unit_amount))
+            get_wallet.save()
+
+            admin_wallet = Wallet.objects.filter(user__is_superuser=True).first()
+            admin_balance = float(admin_wallet.balance) + float(admin_cost)
+            admin_wallet.balance = Decimal(admin_balance)
+            admin_wallet.save()
+
+            merchant_wallet = Wallet.objects.filter(user=add_buy.product.created_by).first()
+            merchant_balance = float(merchant_wallet.balance) + float(merchandise_cost)
+            merchant_wallet.balance = Decimal(merchant_balance)
+            merchant_wallet.save()
+
+            # send notification to merchant            
+            title = "Merchandise product order placed."
+            message = f"{get_user.first_name} {get_user.last_name} has placed an order for buying {add_buy.product.name}."
+            
+            notify_edited_player(add_buy.product.created_by.id, title, message)
+        
+            data['status'] = status.HTTP_200_OK
+            data["message"] = f"You have successfully placed order for {add_buy.product.name} and ${unit_amount} has been deducted from your wallet."
+
+        else:
+            remaining_amount = float(unit_amount) - float(balance)
+            data['status'] = status.HTTP_200_OK
+            data["message"] = f"Please add ${remaining_amount} to your wallet to buy these products." 
+
+        return Response(data) 
+
+    except Exception as e:
+        return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+        
+
+#buy all cart product
+@api_view(('POST',))
+def buy_cart_products(request):
+    """
+    Allows a user to buy all their cart products and apply a coupon code if provided, only for eligible products.
+    """
+    data = {"status":'', }
+    try:
+        user_uuid = request.data.get('user_uuid')
+        user_secret_key = request.data.get('user_secret_key')
+        coupon_code = request.data.get('coupon_code')
+
+        # Validate user
+        check_user = User.objects.filter(uuid=user_uuid, secret_key=user_secret_key)
+        if not check_user.exists():
+            return Response({'message': 'User does not exist.', 'status': status.HTTP_404_NOT_FOUND})
+
+        get_user = check_user.first()    
+
+        # Get all cart products
+        all_cart_product = CustomerMerchandiseStoreProductBuy.objects.filter(created_by_id=get_user.id, status="CART", is_paid=False)
+        
+        if not all_cart_product.exists():
+            return Response({'message': 'No items in cart', 'status': status.HTTP_404_NOT_FOUND})
+
+        card_id_list = []
+        all_product_string = "Your merchandise product "
+        total_price = 0
+        delivery_address_main = ProductDeliveryAddress.objects.filter(created_by=get_user, default_address=True).first()
+        obj = GenerateKey()
+        generate_cart_id = obj.generate_cart_unique_id()
+
+        eligible_products = set()
+       
+        discount_percentage = 0
+        if coupon_code:            
+            coupon = CouponCode.objects.filter(
+                coupon_code=coupon_code, start_date__lte=datetime.now(), end_date__gte=datetime.now()
+            ).first()
+            if coupon:
+                eligible_products = set(coupon.product.values_list('id', flat=True))
+                discount_percentage = coupon.percentage
+            else:
+                coupon_code = None  
+
+        product_prices = {}  
+        
+        for cpd in all_cart_product:
+            card_id_list.append(cpd.id)
+            p_name = cpd.product.name
+            original_price = cpd.price_per_product * cpd.quantity
+
+            final_price = original_price
+            if cpd.product.id in eligible_products and coupon_code:
+                discount_amount = original_price * (discount_percentage / 100)
+                final_price -= discount_amount
+
+            product_prices[cpd.id] = final_price  
+            total_price += final_price
+
+            all_product_string += p_name + ", "
+            complete_address = (
+                f"{delivery_address_main.street}, {delivery_address_main.city}, "
+                f"{delivery_address_main.state}, {delivery_address_main.country}, "
+                f"PIN-{delivery_address_main.postal_code}"
+                if delivery_address_main else ""
+            )
+            CustomerMerchandiseStoreProductBuy.objects.filter(uuid=cpd.uuid).update(
+                delivery_address_main=delivery_address_main,
+                delivery_address=complete_address,
+                cart_idd=generate_cart_id
+            )
+
+        check_wallet = Wallet.objects.filter(user=get_user)
+        if not check_wallet.exists():
+            return Response(
+                {"status": status.HTTP_404_NOT_FOUND, "message": "No wallet found.", "data": []}
+            )
+        
+        get_wallet = check_wallet.first()
+        balance = get_wallet.balance
+        print(product_prices)
+        if float(balance) >= float(total_price):
+
+            for kl in card_id_list:
+                product= CustomerMerchandiseStoreProductBuy.objects.filter(id=kl).first()
+                product.is_paid=True
+                product.status="ORDER PLACED"
+                product.save()
+
+                price = product_prices[kl]
+                merchandise_cost = (settings.ORGANIZER_PERCENTAGE * price) /100
+                admin_cost = (settings.ADMIN_PERCENTAGE * price) /100
+                print(merchandise_cost, admin_cost)
+                WalletTransaction.objects.create(
+                        sender = get_user,
+                        reciver = product.created_by,
+                        reciver_cost = Decimal(merchandise_cost),
+                        amount = Decimal(price),
+                        admin_cost = Decimal(admin_cost),
+                        getway_charge = 0,
+                        transaction_type="debit",
+                        transaction_for="Store",
+                        payment_id=None,  
+                        description=f"${price} is debited from your PickleIt wallet for {product.product.name} purchase."
+                        )
+                get_wallet.balance = Decimal(float(get_wallet.balance) - float(price))
+                get_wallet.save()
+
+                admin_wallet = Wallet.objects.filter(user__is_superuser=True).first()
+                admin_balance = float(admin_wallet.balance) + float(admin_cost)
+                admin_wallet.balance = Decimal(admin_balance)
+                admin_wallet.save()
+
+                merchant_wallet = Wallet.objects.filter(user=product.product.created_by).first()
+                merchant_balance = float(merchant_wallet.balance) + float(merchandise_cost)
+                merchant_wallet.balance = Decimal(merchant_balance)
+                merchant_wallet.save()
+
+                # send notification to merchant                
+                title = "Merchandise product order placed."
+                message = f"{get_user.first_name} {get_user.last_name} has placed an order for buying {product.product.name}."
+                
+                notify_edited_player(product.product.created_by.id, title, message)
+            
+            data['status'] = status.HTTP_200_OK
+            data["message"] = f"You have successfully placed order for your cart products and ${total_price} has been deducted from your wallet."
+
+        else:
+            remaining_amount = float(total_price) - float(balance)
+            data['status'] = status.HTTP_200_OK
+            data["message"] = f"Please add ${remaining_amount} to your wallet to buy the cart products." 
+
+        return Response(data) 
+
+    except Exception as e:
+        return Response({"status": status.HTTP_400_BAD_REQUEST, "message": str(e)})
+   

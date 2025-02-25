@@ -9,6 +9,17 @@ from apps.pickleitcollection.models import *
 
 # Create your models here.
 
+class MerchandiseStore(models.Model):
+    name = models.CharField(max_length=255, null=True, blank=True)
+    company_name = models.CharField(max_length=255, null=True, blank=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='stores')
+    description = models.TextField(null=True, blank=True)
+    company_website = models.CharField(max_length=255, null=True, blank=True)
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    def __str__(self) :
+        return f"{self.name}"
+
 class MerchandiseStoreCategory(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4)
     secret_key = models.CharField(max_length=250, null=True, blank=True, unique=True)
@@ -62,6 +73,7 @@ class MerchandiseStoreProduct(models.Model):
     secret_key = models.CharField(max_length=250, null=True, blank=True, unique=True)
     category = models.ForeignKey(MerchandiseStoreCategory,on_delete=models.SET_NULL, null=True, blank=True, related_name='productCategory')
     name = models.CharField(max_length=250, null=True, blank=True)
+    store_name = models.CharField(max_length=255, null=True, blank=True)
     description = models.TextField(null=True, blank=True)
     specifications = models.TextField(null=True, blank=True)    
     leagues_for = models.ManyToManyField(Leagues, blank=True)

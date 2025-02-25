@@ -22,7 +22,7 @@ from apps.team.models import *
 from apps.user.helpers import GenerateKey
 from apps.pickleitcollection.views import *
 from apps.pickleitcollection.models import *
-from apps.team.views import notify_edited_player, haversine
+from apps.team.helper import notify_edited_player, haversine
 from apps.user.models import User, Role, PDFFile
 from apps.user.serializers import *
 
@@ -139,136 +139,222 @@ def user_signup_email_check_api(request):
     return Response(data)
 
 
-@api_view(('POST',))
-def user_login_api(request):
-    try :
-        data = {'status':'','message':''}
-        email = request.data.get('email')
-        password = request.data.get('password')
+# @api_view(('POST',))
+# def user_login_api(request):
+#     try :
+#         data = {'status':'','message':''}
+#         email = request.data.get('email')
+#         password = request.data.get('password')
         
+#         if not email or not password:
+#             return Response({
+#                 'status': status.HTTP_400_BAD_REQUEST,
+#                 'message': 'Username and password are required.'
+#             })
+#         email = str(email).strip()
+#         password = str(password).strip()
+#         user = authenticate(username=email, password=password)
+#         if user is not None and user.is_superuser:
+#             data = {
+#                     'status': status.HTTP_404_NOT_FOUND,
+#                     'jwt': '',
+#                     "message":"No user found with this credentials",
+#                 }
+
+#         elif user:
+#             # secret_key_base64 = base64.b64encode(user.username.encode()).decode()
+#             secret_key_base64 = base64.b64encode('q5q#@qf)nt452'.encode()).decode()
+#             expiration_time = datetime.utcnow() + timedelta(hours=1)
+#             check_player = Player.objects.filter(player_email=user.email,player_phone_number=user.phone)
+#             if check_player.exists() :
+#                 create_team_option = True
+#                 team_name = ""
+#                 team_created_by = ""
+#             else :
+#                 create_team_option = False
+#                 team_name = ""
+#                 team_created_by = ""
+#             full_name = f"{user.first_name} {user.last_name}"
+#             payload = {
+#                 'uuid': f"{user.uuid}",
+#                 'secret_key': f"{user.secret_key}",
+#                 "role":user.role.role,
+#                 "email":user.email,
+#                 "full_name":full_name,
+#                 'timestamp': f"{datetime.now()}",
+#                 'is_verified' : user.is_verified,
+#                 'create_team_option' : create_team_option,
+#                 'team_name' : team_name,
+#                 'team_created_by' : team_created_by,
+#                 'exp': expiration_time, 
+#                 'is_organizer': user.is_organizer,
+#                 "self_ranking":user.is_rank,
+#             }
+            
+#             # algorithm = 'HS256'
+#             algorithm = 'HS384'
+#             token = jwt.encode(payload, secret_key_base64, algorithm=algorithm)
+#             refresh_token = jwt.encode({'uuid': str(user.uuid)}, secret_key_base64, algorithm=algorithm)
+
+#             check_room = NotifiRoom.objects.filter(user=user)
+#             if check_room.exists():
+#                 room_name = check_room.first().name
+#             else:
+#                 user_id = user.id
+#                 room_name= f"user_{user_id}"
+#                 room = NotifiRoom.objects.create(user=user, name=room_name)
+#                 room = NotifiRoom.objects.filter(user__id=user.id)
+#                 NotificationBox.objects.create(room=room.first(),titel=f"Profile completion.",text_message=f"Hi {user.username} Welcome to PickleIT! Remember to fully update your profile.", notify_for=user)
+
+#             subscription = Subscription.objects.filter(user=user, end_date__gte=now()).first()
+#             if subscription: 
+#                 plan_id = subscription.plan.id               
+#                 plan_name = subscription.plan.name
+#                 plan_price = subscription.plan.price                
+#                 start_date = subscription.start_date.strftime('%Y-%m-%d')
+#                 end_date = subscription.end_date.strftime('%Y-%m-%d')
+#                 is_active = subscription.is_active()                
+#             else:
+#                 plan_id = None
+#                 plan_name = None
+#                 plan_price = None                
+#                 start_date = None
+#                 end_date = None
+#                 is_active = False
+
+#             data = {
+#                 'status': status.HTTP_200_OK,
+#                 'jwt': token,
+#                 'refresh_token':refresh_token,
+#                 'room_name': room_name,
+#                 'is_show_screen': user.is_screen,
+#                 "self_ranking":user.is_rank,
+#                 'is_organizer': user.is_organizer,
+#                 "message":"Successfully logged in",  
+#                 "test":"okay", 
+#                 "subscription_plan_id": plan_id,
+#                 "subscription_plan_name": plan_name,
+#                 "subscription_plan_price": plan_price,
+#                 "subscription_start_date": start_date,
+#                 "subscription_end_date": end_date,
+#                 "subscription_is_active": is_active     
+#             }
+#         elif user is not None and user.get_role() is not None and not user.is_verified :
+#             data = {
+#                 'status': status.HTTP_401_UNAUTHORIZED,
+#                 'jwt': '',
+#                 'refresh_token':'',
+#                 "message":"Please verify your email, a verification link is send to your email",               
+#             }
+#         else:
+#             check_user = User.objects.filter(username=email) 
+#             if check_user.exists() :
+#                 data = {
+#                     'status': status.HTTP_404_NOT_FOUND,
+#                     'jwt': '',
+#                     "message":"Your password does not match our records",
+#                 }
+#             else:
+#                 data = {
+#                     'status': status.HTTP_404_NOT_FOUND,
+#                     'jwt': '',
+#                     "message":"No user found with this credentials",
+#                 }
+#     except Exception as e :
+#         data = {
+#                 'status': status.HTTP_400_BAD_REQUEST,
+#                 'jwt': '',
+#                 'message': f'{e}',
+#             }
+#     return Response(data)
+
+
+@api_view(['POST'])
+def user_login_api(request):
+    try:
+        email = request.data.get('email', '').strip()
+        password = request.data.get('password', '').strip()
+
         if not email or not password:
             return Response({
                 'status': status.HTTP_400_BAD_REQUEST,
-                'message': 'Username and password are required.'
+                'jwt': '',
+                'message': 'Email and password are required.'
             })
-        email = str(email).strip()
-        password = str(password).strip()
+
         user = authenticate(username=email, password=password)
-        if user is not None and user.is_superuser:
-            data = {
-                    'status': status.HTTP_404_NOT_FOUND,
-                    'jwt': '',
-                    "message":"No user found with this credentials",
-                }
 
-        elif user is not None and user.get_role() is not None and user.is_verified :
-            # secret_key_base64 = base64.b64encode(user.username.encode()).decode()
-            secret_key_base64 = base64.b64encode('q5q#@qf)nt452'.encode()).decode()
-            expiration_time = datetime.utcnow() + timedelta(hours=1)
-            check_player = Player.objects.filter(player_email=user.email,player_phone_number=user.phone)
-            if check_player.exists() :
-                create_team_option = True
-                team_name = ""
-                # team_created_by = f"{str(check_player.first().team.created_by.first_name).capitalize()} {str(check_player.first().team.created_by.last_name).capitalize()}"
-                team_created_by = ""
-            else :
-                create_team_option = False
-                team_name = ""
-                team_created_by = ""
-            full_name = f"{user.first_name} {user.last_name}"
-            payload = {
-                'uuid': f"{user.uuid}",
-                'secret_key': f"{user.secret_key}",
-                "role":user.role.role,
-                "email":user.email,
-                "full_name":full_name,
-                'timestamp': f"{datetime.now()}",
-                'is_verified' : user.is_verified,
-                'create_team_option' : create_team_option,
-                'team_name' : team_name,
-                'team_created_by' : team_created_by,
-                'exp': expiration_time, 
-                'is_organizer': user.is_organizer,
-                "self_ranking":user.is_rank,
-            }
-            
-            # algorithm = 'HS256'
-            algorithm = 'HS384'
-            token = jwt.encode(payload, secret_key_base64, algorithm=algorithm)
-            refresh_token = jwt.encode({'uuid': str(user.uuid)}, secret_key_base64, algorithm=algorithm)
-
-            check_room = NotifiRoom.objects.filter(user=user)
-            if check_room.exists():
-                room_name = check_room.first().name
-            else:
-                user_id = user.id
-                room_name= f"user_{user_id}"
-                room = NotifiRoom.objects.create(user=user, name=room_name)
-                room = NotifiRoom.objects.filter(user__id=user.id)
-                NotificationBox.objects.create(room=room.first(),titel=f"Profile completion.",text_message=f"Hi {user.username} Welcome to PickleIT! Remember to fully update your profile.", notify_for=user)
-
-            subscription = Subscription.objects.filter(user=user, end_date__gte=now()).first()
-            if subscription: 
-                plan_id = subscription.plan.id               
-                plan_name = subscription.plan.name
-                plan_price = subscription.plan.price                
-                start_date = subscription.start_date.strftime('%Y-%m-%d')
-                end_date = subscription.end_date.strftime('%Y-%m-%d')
-                is_active = subscription.is_active()                
-            else:
-                plan_id = None
-                plan_name = None
-                plan_price = None                
-                start_date = None
-                end_date = None
-                is_active = False
-
-            data = {
-                'status': status.HTTP_200_OK,
-                'jwt': token,
-                'refresh_token':refresh_token,
-                'room_name': room_name,
-                'is_show_screen': user.is_screen,
-                "self_ranking":user.is_rank,
-                'is_organizer': user.is_organizer,
-                "message":"Successfully logged in",  
-                "test":"okay", 
-                "subscription_plan_id": plan_id,
-                "subscription_plan_name": plan_name,
-                "subscription_plan_price": plan_price,
-                "subscription_start_date": start_date,
-                "subscription_end_date": end_date,
-                "subscription_is_active": is_active     
-            }
-        elif user is not None and user.get_role() is not None and not user.is_verified :
-            data = {
+        if not user:
+            return Response({
+                'status': status.HTTP_404_NOT_FOUND,
+                'jwt': '',
+                'message': 'Invalid credentials'
+            })
+        
+        if user.is_superuser:
+            return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'jwt': '',
+                'message': 'Admin users cannot log in here'
+            })
+        
+        if not user.is_verified:
+            return Response({
                 'status': status.HTTP_401_UNAUTHORIZED,
                 'jwt': '',
-                'refresh_token':'',
-                "message":"Please verify your email, a verification link is send to your email",               
-            }
-        else:
-            check_user = User.objects.filter(username=email) 
-            if check_user.exists() :
-                data = {
-                    'status': status.HTTP_404_NOT_FOUND,
-                    'jwt': '',
-                    "message":"Your password does not match our records",
-                }
-            else:
-                data = {
-                    'status': status.HTTP_404_NOT_FOUND,
-                    'jwt': '',
-                    "message":"No user found with this credentials",
-                }
-    except Exception as e :
-        data = {
-                'status': status.HTTP_400_BAD_REQUEST,
-                'jwt': '',
-                'message': f'{e}',
-            }
-    return Response(data)
+                'message': 'Please verify your email. A verification link has been sent.'
+            })
+        
+        secret_key_base64 = base64.b64encode('q5q#@qf)nt452'.encode()).decode()
+        expiration_time = datetime.utcnow() + timedelta(hours=1)
+        full_name = f"{user.first_name} {user.last_name}".strip()
+        
+        payload = {
+            'uuid': str(user.uuid),
+            'secret_key': user.secret_key,
+            'email': user.email,
+            'full_name': full_name,
+            'timestamp': datetime.utcnow().isoformat(),
+            'is_verified': user.is_verified,
+            'exp': expiration_time,
+            'self_ranking': user.is_rank,
+        }
 
+        algorithm = 'HS384'
+        token = jwt.encode(payload, secret_key_base64, algorithm=algorithm)
+        refresh_token = jwt.encode({'uuid': str(user.uuid)}, secret_key_base64, algorithm=algorithm)
+
+        room, _ = NotifiRoom.objects.get_or_create(user=user, defaults={'name': f'user_{user.id}'})
+        NotificationBox.objects.get_or_create(
+            room=room,
+            defaults={
+                'titel': 'Profile completion.',
+                'text_message': f'Hi {user.username}, welcome to PickleIT! Please update your profile.',
+                'notify_for': user
+            }
+        )
+
+        subscription = Subscription.objects.filter(user=user, end_date__gte=now()).first()
+        subscription_data = {
+            "subscription_plan_id": subscription.plan.id if subscription else None,
+            "subscription_plan_name": subscription.plan.name if subscription else None,
+            "subscription_plan_price": subscription.plan.price if subscription else None,
+            "subscription_start_date": subscription.start_date.strftime('%Y-%m-%d') if subscription else None,
+            "subscription_end_date": subscription.end_date.strftime('%Y-%m-%d') if subscription else None,
+            "subscription_is_active": subscription.is_active() if subscription else False,
+        }
+
+        return Response({
+            'status': status.HTTP_200_OK,
+            'jwt': token,
+            'refresh_token': refresh_token,
+            'room_name': room.name,
+            'message': 'Successfully logged in',
+            **subscription_data
+        })
+    
+    except Exception as e:
+        return Response({'status': status.HTTP_400_BAD_REQUEST,'jwt': '','message': str(e),})
 
 @api_view(('POST',))
 def get_user_access_token(request):
