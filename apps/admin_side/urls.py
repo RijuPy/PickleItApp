@@ -32,14 +32,18 @@ urlpatterns = [
     path('edit_user_/<int:user_id>/', views.edit_user, name="edit_user"),
     path('delete_user_/<int:user_id>/', views.delete_user, name="delete_user"),
 
-    path("tournamnet_list/<str:filter_by>", views.tournamnet_list, name="tournamnet_list"),
-    path("view_tournament/<int:tour_id>/<str:type>/", views.view_tournament, name="view_tournament"),
-    path("hit_start_tournamnet/<int:tour_id>/<str:type>/", views.hit_start_tournamnet, name="hit_start_tournamnet"),
-    
+    path("tournamnet_list/<str:filter_by>", views.tournament_list, name="tournamnet_list"),
+    path("view_tournament/<int:tour_id>/", views.view_tournament, name="view_tournament"),
+    path("hit_start_tournamnet/<int:tour_id>/", views.hit_start_tournamnet, name="hit_start_tournamnet"),
     path("create_tournamnet/", views.create_tournamnet, name="create_tournamnet"),
-    path("edit_tournamnet/<int:tour_id>/", views.edit_tournamnet, name="edit_tournamnet"),
+    # path("edit_tournamnet/<int:tour_id>/", views.edit_tournamnet, name="edit_tournamnet"),
+    path("update_match/<int:set_score_id>/", views.update_match, name="update_match"),
+    path("edit_tournament/<int:tour_id>/", views.edit_tournament, name="edit_tournament"),
+    path("edit_matches__score/<int:tour_id>/", views.edit_matches__, name="edit_matches__score"),
+    path('update-match-order/', views.update_match_order, name='update_match_order'),
     path("submit_score/<int:tour_id>/", views.submit_score, name="submit_score"),
     path("delete_tournament/<int:tour_id>/", views.delete_tournament, name="delete_tournament"),
+
 
     path("advertisement_list_/", views.advertisement_list, name="advertisement_list"),
     path("advertisement_view_/<int:ad_id>/", views.advertisement_view, name="advertisement_view"),

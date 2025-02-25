@@ -5,7 +5,7 @@ from apps.team.models import *
 from apps.user.models import *
 from apps.pickleitcollection.models import *
 from apps.store.models import *
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 import json
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.decorators import login_required
@@ -14,9 +14,16 @@ from django.contrib.auth import logout
 from apps.team.views import notify_edited_player, check_add_player
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
+from django.views.decorators.csrf import csrf_exempt
+from django.core.paginator import Paginator
 
 protocol = settings.PROTOCALL
 
+def check_data_structure(data_structure):
+    for item in data_structure:
+        if item["number_of_courts"] != 0 or item["sets"] != 0 or item["point"] != 0:
+            return False
+    return True
 
 # Create your views here.
 @login_required(login_url="/admin/login/")
@@ -910,13 +917,16 @@ def delete_user(request, user_id):
     return render(request, "dashboard/side/user/delete_user_confirm.html",context)
 
 
+
 @login_required(login_url="/admin/login/")
-def tournamnet_list(request, filter_by):
-    context={"tournamnet_data":[]}
+def tournament_list(request, filter_by):
+    context = {"tournament_data": []}
     filter_by = request.GET.get('filter_by')
     context["filter_by"] = filter_by
-    all_leagues = Leagues.objects.filter(is_disabled=False)
+    all_leagues = Leagues.objects.filter(is_disabled=False).order_by('-created_at')  # Order by created_at descending
     today_date = datetime.now()
+
+    # Filter leagues based on filter_by
     if filter_by == "all":
         all_leagues = all_leagues
     elif filter_by == "upcoming":
@@ -924,144 +934,327 @@ def tournamnet_list(request, filter_by):
     elif filter_by == "past":
         all_leagues = all_leagues.filter(registration_end_date__date__lte=today_date)
     elif filter_by == "open":
-        all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,registration_end_date__date__gte=today_date)
+        all_leagues = all_leagues.filter(registration_start_date__date__lte=today_date,
+                                         registration_end_date__date__gte=today_date)
+    elif filter_by == "ongoing":
+        all_leagues = all_leagues.filter(leagues_start_date__date__lte=today_date,
+                                         leagues_end_date__date__gte=today_date)
 
-    leagues = all_leagues.values('id','description','uuid','secret_key','name','location','leagues_start_date','leagues_end_date',
-                               'registration_start_date','registration_end_date','team_type__name','team_person__name',
-                               "street","city","state","postal_code","country","complete_address","latitude","longitude","image", "others_fees", "league_type","registration_fee")
-    output = []
-    
+    leagues = all_leagues.values('id', 'description', 'uuid', 'secret_key', 'name', 'location', 'leagues_start_date', 
+                                 'leagues_end_date', 'registration_start_date', 'registration_end_date', 
+                                 'team_type__name', 'team_person__name', 'street', 'city', 'state', 'postal_code', 
+                                 'country', 'complete_address', 'latitude', 'longitude', 'image', 'others_fees', 
+                                 'league_type', 'registration_fee', 'created_at')
+
     # Grouping data by 'name'
     grouped_data = {}
     for item in list(leagues):
-        item["is_reg_diable"] = True
+        item["is_reg_disabled"] = True
         match_ = Tournament.objects.filter(leagues_id=item["id"]).values()
         if match_.exists():
-            item["is_reg_diable"] = False
+            item["is_reg_disabled"] = False
         le = Leagues.objects.filter(id=item["id"]).first()
-        reg_team =le.registered_team.all().count()
+        reg_team = le.registered_team.all().count()
         max_team = le.max_number_team
         if max_team <= reg_team:
-            item["is_reg_diable"] = False
+            item["is_reg_disabled"] = False
+        
         key = item['name']
         sub_organizer = le.add_organizer.all().values()
         
         created_by = f"{le.created_by.first_name} {le.created_by.last_name}"
+        
+        team_type = {
+            'id': le.id,  # Assuming `team_type` has an `id` field
+            'type': le.team_type.name
+        }
+        
         if key not in grouped_data:
             grouped_data[key] = {
-                                'id':item['id'],
-                                'name': item['name'], 
-                                'lat':item['latitude'], 
-                                'long':item["longitude"],
-                                'registration_start_date':item["registration_start_date"],
-                                'registration_end_date':item["registration_end_date"],
-                                'description':item["description"],
-                                'leagues_start_date':item["leagues_start_date"],
-                                'leagues_end_date':item["leagues_end_date"],
-                                'location':item["location"],
-                                'image':item["image"],
-                                'type': [item['team_type__name']], 
-                                'sub_organizer':sub_organizer,
-                                'created_by':created_by,
-                                'data': [item]
-                                }
+                'id': item['id'],
+                'name': item['name'],
+                'lat': item['latitude'],
+                'long': item["longitude"],
+                'registration_start_date': item["registration_start_date"],
+                'registration_end_date': item["registration_end_date"],
+                'description': item["description"],
+                'leagues_start_date': item["leagues_start_date"],
+                'leagues_end_date': item["leagues_end_date"],
+                'location': item["location"],
+                'image': item["image"],
+                'type': [team_type],
+                'sub_organizer': sub_organizer,
+                'created_by': created_by,
+                'data': [item]
+            }
         else:
-            grouped_data[key]['type'].append(item['team_type__name'])
+            if team_type not in grouped_data[key]['type']:
+                grouped_data[key]['type'].append(team_type)
             grouped_data[key]['data'].append(item)
 
-    # Building the final output
+    # Sorting the grouped data by the created_at field (latest tournament first)
+    output = []
     for key, value in grouped_data.items():
+        value['data'].sort(key=lambda x: x['created_at'], reverse=True)
         output.append(value)
 
-    # print(output)
-    leagues = output
-    context["tournamnet_data"] = leagues
+    # Pagination
+    paginator = Paginator(output, 12)  # Show 5 tournaments per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context["tournament_data"] = page_obj
     return render(request, "dashboard/side/tournament_list.html", context)
 
-@login_required(login_url="/admin/login/")
-def view_tournament(request, tour_id, type):
-    context = {
-        "tournament_details":{}, 
-        "dis_message":"",
-        "type":type,
-        'create_group_status':False,
-        'max_team': None,
-        'total_register_team':None,
-        'is_organizer': False,
-        'invited_code':None,
-        'winner_team': 'Not Declared',
-        'tournament_detais':[],
-        'point_table':[],
-        'elemination':[], 
-        'final':[], 
-        'match':[]
-        }
-    current_site = f"https://pickleit.app"
-    check_tour = Leagues.objects.filter(id=tour_id).first()
-    tour_create_by = check_tour.created_by
-    if request.method == "POST":
-        url = f"{current_site}/team/22fef865dab2109505b61d85df50c5126e24f0c0a10990f2670c179fb841bfd2/"
-        payload = {
-            'user_uuid': str(tour_create_by.uuid),
-            'user_secret_key': str(tour_create_by.secret_key),
-            'league_uuid': str(check_tour.uuid),
-            'league_secret_key': str(check_tour.secret_key)
-        }
-        print(payload, url)
-        response = requests.post(url, json=payload)
-        if response.status_code == 200:            
-           
-            context["dis_message"] = response.json()["message"]
-        else:
-            error_message = "API call failed with status code: {}".format(response.status_code)
-           
-    check_tournamnet = Leagues.objects.filter(id=tour_id)
-    if check_tournamnet.exists():
-        t_name = check_tournamnet.first().name
-        now_find_tournament = Leagues.objects.filter(name=t_name, team_type__name=type)
-        if now_find_tournament.exists():
-            tournament = now_find_tournament.first()
-            tournament_details = now_find_tournament.values()
-            tournament_details[0]["organizer"] = f"{tournament.created_by.first_name} {tournament.created_by.last_name}"
-            tournament_details[0]["sub_organizer"] = list(tournament.add_organizer.all().values())
-            tournament_details[0]["user_uuid"] = tournament.created_by.uuid
-            tournament_details[0]["user_secret_key"] = tournament.created_by.secret_key
-            
-            get_url  =  f"{current_site}/team/8da2a08a043f05bca31c69c545cb75e82c46b04b80f40895864553bc5857fd70/?user_uuid={str(tour_create_by.uuid)}&user_secret_key={str(tour_create_by.secret_key)}&league_uuid={str(check_tour.uuid)}&league_secret_key={str(check_tour.secret_key)}"
-            response = requests.request("GET", get_url)
-            # context["api_responce"] = response.json()
-            response_data = response.json()
-           
-            del response_data["data"]
-            context["tournament_details"] = tournament_details[0]
-            context["match"] = response_data["match"]
-            context["teams"] = response_data.get("teams")
-            context["match"] = response_data["match"]
-            context["point_table"] = response_data["point_table"]
-            context["elemination"] = response_data["elemination"]
-            context["semi_final"] = response_data.get("semi_final")
-            context["final"] = response_data["final"]
-            context["winner_team"] = response_data["winner_team"]
-            context["total_register_team"] = response_data["total_register_team"]
-            context["max_team"] = response_data["max_team"]
-            context["is_organizer"] = response_data["is_organizer"]
-            context["invited_code"] = response_data["invited_code"]
-            context["create_group_status"] = response_data["create_group_status"]
-            return render(request, "dashboard/side/tournament_type_details.html",context)
-        else:
-            context["dis_message"] = "Tournament not found Or somethings is wrong"
-            return render(request, "dashboard/side/tournament_type_details.html",context)
-    else:
-        context["dis_message"] = "Tournament not found Or somethings is wrong"
-    return render(request, "dashboard/side/tournament_type_details.html",context)
 
 @login_required(login_url="/admin/login/")
-def hit_start_tournamnet(request, tour_id, type):
+def view_tournament(request, tour_id):
+    context = {
+        "league_details": [],
+        "matches":[],
+        "teams":[],
+        "message":None
+    }
+    try:
+        League_details = Leagues.objects.filter(id=tour_id).first()
+        context["league_details"] = League_details
+        have_score = TournamentSetsResult.objects.filter(tournament__leagues = League_details)
+        if have_score:
+            context["is_edit_match"] = False
+        else:
+            context["is_edit_match"] = True
+        if League_details.registered_team:
+            context["teams"] = League_details.registered_team.all()
+        matches = Tournament.objects.filter(leagues=League_details).values()
+        for mtch in matches:
+            mtch["result"] = TournamentSetsResult.objects.filter(tournament=mtch["id"])
+            if mtch["team1_id"]:
+                mtch["team1"] = Team.objects.filter(id=mtch["team1_id"]).first().name
+                mtch["team1_image"] = Team.objects.filter(id=mtch["team1_id"]).first().team_image
+            else:
+                mtch["team1"] = None
+                mtch["team1_image"] = None
+
+            if mtch["team2_id"]:
+                mtch["team2"] = Team.objects.filter(id=mtch["team2_id"]).first().name
+                mtch["team2_image"] = Team.objects.filter(id=mtch["team2_id"]).first().team_image
+            else:
+                mtch["team2"] = None
+                mtch["team2_image"] = None
+
+            if mtch["winner_team_id"]:
+                mtch["winner_team"] = Team.objects.filter(id=mtch["winner_team_id"]).first().name
+                mtch["winner_team_image"] = Team.objects.filter(id=mtch["winner_team_id"]).first().team_image
+            else:
+                mtch["winner_team"] = None
+                mtch["winner_team_image"] = None
+
+            if mtch["loser_team_id"]:
+                mtch["loser_team"] = Team.objects.filter(id=mtch["loser_team_id"]).first().name
+                mtch["loser_team_image"] = Team.objects.filter(id=mtch["loser_team_id"]).first().team_image
+            else:
+                mtch["loser_team"] = None
+                mtch["loser_team_image"] = None
+        context["matches"] = matches
+    except Exception as e:
+        context["message"] = str(e)
+    
+    play_type_details = LeaguesPlayType.objects.filter(league_for=League_details)
+    if play_type_details:
+        play_type_details = play_type_details.first().data
+    else:
+        play_type_details = [
+                        {"name": "Round Robin", "number_of_courts": 0, "sets": 0, "point": 0},
+                        {"name": "Elimination", "number_of_courts": 0, "sets": 0, "point": 0},
+                        {"name": "Final", "number_of_courts": 0, "sets": 0, "point": 0}
+                        ]
+    check_data = check_data_structure(play_type_details)
+    context["play_details_update"] = check_data
+    return render(request, "dashboard/side/tournament_type_details.html",context)
+
+
+@login_required(login_url="/admin/login/")
+def edit_tournament(request, tour_id):
+    try:
+        # Get the league details or raise an error if it doesn't exist
+        if request.method == "POST":
+            league_details = Leagues.objects.get(id=tour_id)
+            # Process the POST request and update the league details
+            league_details.name = request.POST.get("tournament_name", league_details.name)
+            league_details.leagues_start_date = request.POST.get("league_start_date", league_details.leagues_start_date)
+            league_details.leagues_end_date = request.POST.get("league_end_date", league_details.leagues_end_date)
+            league_details.registration_start_date = request.POST.get("registration_start_date", league_details.registration_start_date)
+            league_details.registration_end_date = request.POST.get("registration_end_date", league_details.registration_end_date)
+            league_details.max_number_team = request.POST.get("max_join_team", league_details.max_number_team)
+            league_details.registration_fee = request.POST.get("registration_fee", league_details.registration_fee)
+            league_details.description = request.POST.get("description", league_details.description)
+            league_details.location = request.POST.get("location", league_details.location)
+            # Handle many-to-many relationship with teams (Join Team)
+            selected_teams = request.POST.getlist("join_team")
+            league_details.registered_team.set(selected_teams)
+
+            # Handle other fees, if any
+            other_fees_topic = request.POST.getlist("other_fees_topic[]")
+            other_fees = request.POST.getlist("other_fees[]")
+            other_fees_dict = dict(zip(other_fees_topic, other_fees))
+            league_details.others_fees = other_fees_dict
+
+            # Save updated details
+            league_details.save()
+
+
+            courts_1 = request.POST.get("courts_1", 0)
+            sets_1 = request.POST.get("sets_1", 0)
+            points_1 = request.POST.get("points_1", 0)
+
+            courts_2 = request.POST.get("courts_2", 0)
+            sets_2 = request.POST.get("sets_2", 0)
+            points_2 = request.POST.get("points_2", 0)
+
+            courts_3 = request.POST.get("courts_3", 0)
+            sets_3 = request.POST.get("sets_3", 0)
+            points_3 = request.POST.get("points_3", 0)
+
+            play_details = LeaguesPlayType.objects.filter(league_for=league_details).first()
+            tournament_play_type = league_details.play_type
+            data_ = [{"name": "Round Robin", "number_of_courts": courts_1, "sets": sets_1, "point": points_1},
+                    {"name": "Elimination", "number_of_courts": courts_2, "sets": sets_2, "point": points_2},
+                    {"name": "Final", "number_of_courts": courts_3, "sets": sets_3, "point": points_3}]
+            print(data_, "data")
+            for se in data_:
+                if tournament_play_type == "Group Stage":
+                    se["is_show"] = True
+                elif tournament_play_type == "Round Robin": 
+                    if se["name"] == "Round Robin":
+                        se["is_show"] = True
+                    else:
+                        se["is_show"] = False
+                elif tournament_play_type == "Single Elimination":
+                    if se["name"] != "Round Robin":
+                        se["is_show"] = True
+                    else:
+                        se["is_show"] = False
+                elif tournament_play_type == "Individual Match Play":
+                    if se["name"] == "Final":
+                        se["is_show"] = True
+                    else:
+                        se["is_show"] = False 
+            print("hit", data_)
+            play_details.data = data_
+            play_details.save()
+            # # Redirect to a success page or show a success message
+            # return redirect(reverse('edit_tournament', args=[tour_id])) # Replace with actual URL
+
+
+        tournament_play_type = league_details.play_type
+        play_type_details = LeaguesPlayType.objects.filter(league_for=league_details)
+        
+        if play_type_details:
+            play_type_details = play_type_details.first().data
+            
+        else:
+            play_type_details = [
+                        {"name": "Round Robin", "number_of_courts": 0, "sets": 0, "point": 0},
+                        {"name": "Elimination", "number_of_courts": 0, "sets": 0, "point": 0},
+                        {"name": "Final", "number_of_courts": 0, "sets": 0, "point": 0}
+                        ]
+        for se in play_type_details:
+            if tournament_play_type == "Group Stage":
+                se["is_show"] = True
+            elif tournament_play_type == "Round Robin": 
+                if se["name"] == "Round Robin":
+                    se["is_show"] = True
+                else:
+                    se["is_show"] = False
+            elif tournament_play_type == "Single Elimination":
+                if se["name"] != "Round Robin":
+                    se["is_show"] = True
+                else:
+                    se["is_show"] = False
+            elif tournament_play_type == "Individual Match Play":
+                if se["name"] == "Final":
+                    se["is_show"] = True
+                else:
+                    se["is_show"] = False 
+        # Initialize context dictionary
+        context = {
+            "league_details": Leagues.objects.get(id=tour_id),
+            "teams": Team.objects.all(),
+            "play_type_details": play_type_details
+        }
+
+    except Leagues.DoesNotExist:
+        # If the league doesn't exist, raise a 404 error
+        raise Http404("Tournament not found.")
+    except Exception as e:
+        # Log or handle other exceptions
+        context["message"] = str(e)
+        return render(request, "dashboard/side/edit_tournamnet.html", context)
+    
+    check_data = check_data_structure(play_type_details)
+    context["play_details_update"] = check_data
+  
+    return render(request, "dashboard/side/edit_tournamnet.html", context)
+
+
+@login_required(login_url="/admin/login/")
+def edit_matches__(request, tour_id):
+    
+    league_details = Leagues.objects.get(id=tour_id)
+    
+    # Initialize context dictionary
+    context = {
+        "matches": Tournament.objects.filter(leagues=league_details), 
+        "league_name": league_details.name
+    }
+    
+    return render(request, "dashboard/side/edit_matches.html", context)
+
+
+@csrf_exempt
+@login_required(login_url="/admin/login/")
+def update_match_order(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            match_order = data.get('matchOrder', [])
+            for index, match_id in enumerate(match_order):
+                Tournament.objects.filter(id=match_id).update(match_number=index + 1)
+            return JsonResponse({"success": True})
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+    return JsonResponse({"success": False, "error": "Invalid request"})
+
+@login_required(login_url="/admin/login/")
+def update_match(request, set_score_id):
+    if request.method == 'POST':
+        match = get_object_or_404(TournamentSetsResult, id=set_score_id)
+
+        # tournament_id = request.POST.get('tournament_id')
+        set_number = request.POST.get(f'set_num_{match.id}')
+        team1_score = request.POST.get(f't1_score_{match.id}')
+        team2_score = request.POST.get(f't2_score_{match.id}')
+        # status = request.POST.get(f'status_{match.id}')
+
+        if set_number and team1_score and team2_score:
+            match.set_number = int(set_number)
+            match.team1_point = int(team1_score)
+            match.team2_point = int(team2_score)
+            match.is_completed = True
+            match.save()
+        return JsonResponse({"success": True, "message": "Match updated successfully!"})
+
+    return JsonResponse({"success": False, "message": "Invalid request method."}, status=400)
+
+
+@login_required(login_url="/admin/login/")
+def hit_start_tournamnet(request, tour_id):
     check_tour = Leagues.objects.filter(id=tour_id).first()
     tour_create_by = check_tour.created_by
     host = request.get_host()
     current_site = f"{protocol}://{host}"
     url = f"{current_site}/team/22fef865dab2109505b61d85df50c5126e24f0c0a10990f2670c179fb841bfd2/"
+    # print(url)
     payload = {
         'user_uuid': str(tour_create_by.uuid),
         'user_secret_key': str(tour_create_by.secret_key),
@@ -1069,9 +1262,8 @@ def hit_start_tournamnet(request, tour_id, type):
         'league_secret_key': str(check_tour.secret_key)
     }
     response = requests.post(url, json=payload)
-    print("hit", response)
-    # Assuming everything went well, redirect to the view_tournament
-    return redirect('view_tournament', tour_id=tour_id, type=type)
+    # print(response)
+    return redirect('dashboard:view_tournament', tour_id=tour_id)
 
 
 @login_required(login_url="/admin/login/")
@@ -1114,11 +1306,11 @@ def create_tournamnet(request):
         mesage_box = []
         counter = 0
         for kk in team_type:
-            print(team_person[counter])
+            # print(team_person[counter])
             check_leagues = LeaguesTeamType.objects.filter(name=str(kk))
             check_person = LeaguesPesrsonType.objects.filter(name=str(team_person[counter]))
-            print(check_leagues)
-            print(check_person)
+            # print(check_leagues)
+            # print(check_person)
             if check_leagues.exists() and check_person.exists():
                 check_leagues_id = check_leagues.first().id
                 check_person_id = check_person.first().id
@@ -1220,6 +1412,7 @@ def create_tournamnet(request):
         return redirect("/admin/tournamnet_list/all")
 
     return render(request, "dashboard/side/create_tournamnet_form.html", context)
+
 
 @login_required(login_url="/admin/login/")
 def edit_tournamnet(request, tour_id):
@@ -1359,33 +1552,34 @@ def submit_score(request, tour_id):
     type = tournament.team_type.name
     return redirect(reverse("dashboard:view_tournament", kwargs={"tour_id":tour_id, "type":type}))
 
-
-
 @login_required(login_url="/admin/login/")
 def delete_tournament(request, tour_id):
-    context = {"dis_message":""}
+    context = {"dis_message": ""}
     tournament = get_object_or_404(Leagues, id=tour_id)
-    type = tournament.team_type.name
     context["tournament"] = tournament
-    if request.method == 'POST':
-        if tournament.is_complete== False:
-            # return HttpResponse("This tournament cannot be deleted as teams have registered for it.")
-            context["dis_message"] = "This tournament cannot be deleted as its still not completed "
-            type = tournament.team_type.name
-            return render(request, "dashboard/side/tournament_type_details.html", context)
-        else:
-            matches =  Tournament.objects.filter(leagues=tournament)
-            round_robin = RoundRobinGroup.objects.filter(league_for=tournament)
-            if matches.exists():
-                set_result = TournamentSetsResult.objects.filter(tournament__leagues=tournament)
-                if set_result.exists():
-                    set_result.delete()
-                if round_robin.exists():
-                    round_robin.delete()
-                matches.delete()
-            tournament.delete()            
-            return redirect("/admin/tournamnet_list/all")
-    return render(request, "dashboard/side/tournament_type_details.html", context)
+    
+     
+    # Delete associated data if the tournament is complete
+    matches = Tournament.objects.filter(leagues=tournament)
+    round_robin = RoundRobinGroup.objects.filter(league_for=tournament)
+        
+    if matches.exists():
+        set_result = TournamentSetsResult.objects.filter(tournament__leagues=tournament)
+        if set_result.exists():
+            set_result.delete()
+        matches.delete()
+    
+    if round_robin.exists():
+        round_robin.delete()
+        
+    # Delete play type and tournament
+    LeaguesPlayType.objects.filter(league_for=tournament).delete()
+    tournament.delete()
+    
+    return redirect("/admin/tournamnet_list/all")
+
+
+
 
 @login_required(login_url="/admin/login/")
 def ambassador_post_list(request):
